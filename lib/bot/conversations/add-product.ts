@@ -1,6 +1,7 @@
 import { InlineKeyboard } from "grammy";
 import type { Size } from "@prisma/client";
 import { prisma } from "../../db";
+import config from "../../config";
 import type { AppContext, AppConversation } from "../types";
 import { uploadTelegramPhotoToSupabase } from "../upload";
 import { publishToChannel } from "../channel";
@@ -383,8 +384,11 @@ export async function addProductConversation(
     })
   );
 
+  const channelMention = config.channelUsername
+    ? `@${config.channelUsername}`
+    : "канале";
   await ctx.reply(
-    "✅ Товар опубликован в канале и в служебном чате. " +
-      "Управляй кнопками в служебном чате."
+    `✅ Товар опубликован в ${channelMention} и в служебном чате. ` +
+      `Управляй кнопками в служебном чате.`
   );
 }

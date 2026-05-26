@@ -1,13 +1,15 @@
 # Онлайн-витрина магазина одежды + Telegram бот
 
-Универсальная связка: сайт-витрина с фильтрами, Telegram-бот для работников магазина и автопостинг в Telegram-канал. Один кодовый репозиторий — несколько магазинов с разными `.env` и `config.json`.
+Универсальная связка: сайт-витрина с фильтрами, Telegram-бот для работников
+магазина и автопостинг в Telegram-канал. **Один кодовый репозиторий — несколько
+магазинов** с разными `.env` и `config.json`.
 
 ## Стек
 
-- **Next.js** (App Router, TypeScript) — сайт + API + webhook бота
+- **Next.js 16** (App Router, TypeScript) — сайт + API + webhook бота
 - **Supabase** — PostgreSQL + Storage для фото
-- **Prisma** — ORM
-- **grammY** — Telegram бот
+- **Prisma 7** (с `@prisma/adapter-pg`) — ORM
+- **grammY** + `@grammyjs/conversations` — Telegram бот
 - **Vercel** — хостинг
 
 ---
@@ -15,78 +17,74 @@
 ## Установка и запуск
 
 ```bash
-# 1. Клонировать репозиторий
 git clone <repo-url>
 cd <repo-folder>
+npm install                       # postinstall запустит prisma generate
 
-# 2. Установить зависимости
-npm install
+cp .env.example .env              # заполни значениями (см. ниже)
 
-# 3. Скопировать и заполнить переменные окружения
-cp .env.example .env
-# Открыть .env и вставить реальные значения (см. ниже)
+npx prisma migrate deploy         # применить миграции в БД
+npx tsx scripts/seed.ts           # (опц.) seed: категория «футболка» + владелец
 
-# 4. Применить миграции БД (создаст таблицы в Supabase)
-npx prisma migrate dev
-
-# 5. (Опционально) Залить тестовые данные:
-#    одну категорию «футболка» и владельца из OWNER_TELEGRAM_ID
-npx tsx scripts/seed.ts
-
-# 6. Запустить в режиме разработки
-npm run dev
+npm run dev                       # http://localhost:3000
 ```
 
-Сайт откроется на [http://localhost:3000](http://localhost:3000).
+После деплоя на Vercel — установить webhook бота:
+
+```bash
+npx tsx scripts/set-webhook.ts    # читает NEXT_PUBLIC_SITE_URL из .env
+```
 
 ---
 
 ## Переменные окружения (`.env`)
 
+Секретное, **никогда не коммитим**.
+
 | Переменная | Откуда взять |
 |---|---|
 | `BOT_TOKEN` | Создать бота у [@BotFather](https://t.me/BotFather), скопировать токен |
 | `OWNER_TELEGRAM_ID` | Получить у [@userinfobot](https://t.me/userinfobot) |
-| `CHANNEL_ID` | Username канала без `@` или числовой chat_id (бот должен быть admin) |
-| `SERVICE_CHAT_ID` | ID группового чата работников, куда бот шлёт копии с кнопками «Редактировать» / «Нет в наличии» |
-| `DATABASE_URL` | Supabase → Settings → Database → Connection string (Transaction mode, порт 6543, `?pgbouncer=true`) — для рантайма |
-| `DIRECT_URL` | Supabase → Settings → Database → Connection string (Session mode, порт 5432) — для миграций |
+| `CHANNEL_ID` | Username канала без `@` или числовой chat_id (бот должен быть admin с правом постинга/редактирования/удаления) |
+| `SERVICE_CHAT_ID` | ID супергруппы работников (бот — admin), куда уходят копии товаров с кнопками управления |
+| `DATABASE_URL` | Supabase → Settings → Database → Connection string → **Session mode** (порт 5432). Не Transaction pooler 6543 — adapter-pg не дружит с ним |
+| `DIRECT_URL` | Та же строка, что DATABASE_URL (нужна Prisma 7 для миграций отдельно) |
 | `SUPABASE_URL` | Supabase → Settings → API → Project URL |
-| `SUPABASE_SERVICE_KEY` | Supabase → Settings → API Keys → secret key (`sb_secret_...`) |
-| `SUPABASE_BUCKET` | Название bucket для фото — создать вручную в Supabase Storage |
-| `NEXT_PUBLIC_SITE_URL` | URL деплоя (локально: `http://localhost:3000`) |
+| `SUPABASE_SERVICE_KEY` | Supabase → Settings → API Keys → **secret** key (`sb_secret_...`), НЕ publishable |
+| `SUPABASE_BUCKET` | Имя публичного бакета для фото (создать вручную в Supabase Storage) |
+| `NEXT_PUBLIC_SITE_URL` | Публичный URL деплоя (`https://your-shop.vercel.app`). Используется для webhook и server-side fetch |
 
 ---
 
 ## Настройки магазина (`config.json`)
 
-Несекретные настройки конкретного магазина. Меняются при деплое нового магазина.
+Несекретное, коммитится в репозиторий.
 
 | Поле | Значение |
 |---|---|
-| `storeName` | Название магазина (отображается на сайте) |
-| `sellerUsername` | Telegram username продавца без `@` |
-| `channelUsername` | Username канала без `@` |
-| `currency` | Символ валюты (по умолчанию `₽`) |
+| `storeName` | Название магазина (заголовок сайта, метаданные) |
+| `sellerUsername` | Telegram username продавца без `@`. Используется в кнопке «Купить в Telegram» на странице товара |
+| `channelUsername` | Username канала без `@`. Используется в футере сайта (ссылка) и в сообщении бота после публикации товара |
+| `currency` | Символ валюты — отображается в подписях постов и на сайте (по умолчанию `₽`) |
 
 ---
 
 ## База данных
 
-- Схема — `prisma/schema.prisma` (модели: `Worker`, `Category`, `Product`, `Photo`)
+- Схема — `prisma/schema.prisma` (модели: `Worker`, `Category`, `Product`, `Photo`, `BotSession`)
 - Конфиг Prisma — `prisma.config.ts` (Prisma 7+ требует TS-конфиг вместо `package.json#prisma`)
-- Миграции — `prisma/migrations/` (создаются командой `npx prisma migrate dev --name <name>`)
-- Клиент — синглтон в `lib/db.ts`, использует `@prisma/adapter-pg` (Prisma 7 требует driver adapter)
-- Seed — `scripts/seed.ts`, запускается вручную через `npx tsx scripts/seed.ts`
+- Клиент — `lib/db.ts`: синглтон `PrismaClient` с `@prisma/adapter-pg`,
+  TCP keepAlive (чтобы Supabase pooler не закрывал idle коннект),
+  retry-обёртка на P1017 ConnectionClosed.
 
 ### Полезные команды
 
 ```bash
-npx prisma migrate dev --name <name>   # создать миграцию и применить
-npx prisma migrate deploy              # применить миграции в проде
-npx prisma generate                    # перегенерить клиент после правок schema
-npx prisma studio                      # GUI для просмотра данных
-npx tsx scripts/seed.ts                # залить тестовые данные
+npx prisma migrate dev --name <name>   # создать миграцию (в dev)
+npx prisma migrate deploy              # применить в проде
+npx prisma generate                    # перегенерить клиент
+npx prisma studio                      # GUI на http://localhost:5555
+npx tsx scripts/seed.ts                # seed тестовых данных
 ```
 
 ---
@@ -97,46 +95,130 @@ npx tsx scripts/seed.ts                # залить тестовые данн�
 
 ### Архитектура
 
-- `lib/bot/index.ts` — инициализация grammY бота, сборка middleware-цепочки
-- `lib/bot/types.ts` — `AppContext` (расширение grammY-контекста полем `worker`)
-- `lib/bot/middleware.ts` — `whitelist` (фильтр чужих) + `privateOnly` (только ЛС)
-- `lib/bot/handlers/start.ts` — обработчик `/start`
-- `lib/bot/handlers/stubs.ts` — заглушки для команд из следующих этапов
-- `app/api/bot/route.ts` — Next.js Route Handler, отдаёт обновления в grammY
-- `scripts/set-webhook.ts` — устанавливает webhook URL после деплоя
+```
+lib/bot/
+├── index.ts                — инициализация Bot, регистрация middleware и команд
+├── types.ts                — AppContext (worker + conversations flavor)
+├── middleware.ts           — whitelist + privateOnly + ownerOnly
+├── storage.ts              — Prisma-based storage для @grammyjs/conversations
+├── channel.ts              — публикация / редактирование / SOLD в канале
+├── service-chat.ts         — то же для служебного чата (с inline-кнопками)
+├── upload.ts               — pipeline: Telegram getFile → fetch → Supabase Storage
+├── telegram-utils.ts       — isNotModifiedError (катча 400 «message is not modified»)
+├── handlers/
+│   ├── start.ts            — /start (список команд для роли)
+│   ├── owner.ts            — /add_worker, /remove_worker, /list_workers,
+│   │                         /add_category, /remove_category, /list_categories
+│   ├── edit.ts             — onEditClick + onEditCancel (вход в редактирование)
+│   └── sold.ts             — onSoldClick + onRestockClick (SOLD-флоу)
+└── conversations/
+    ├── add-product.ts      — пошаговое добавление товара
+    └── edit-product.ts     — пошаговое редактирование товара
+```
 
 ### Webhook
 
-После каждого деплоя на новый домен (или смены `BOT_TOKEN`) нужно поставить webhook:
+После каждого деплоя на новый домен (или смены `BOT_TOKEN`):
 
 ```bash
 npx tsx scripts/set-webhook.ts
 ```
 
-Скрипт читает `NEXT_PUBLIC_SITE_URL` из `.env` и регистрирует у Telegram адрес
-`<NEXT_PUBLIC_SITE_URL>/api/bot`. Требования Telegram: HTTPS, публичный домен
-(не localhost). Локально webhook не поставить — для локальной разработки бота
-проще запустить временный туннель (например, через `cloudflared` или `ngrok`)
-или поднимать только сайт, а тестировать бот после деплоя.
+Скрипт читает `NEXT_PUBLIC_SITE_URL` из `.env` и регистрирует у Telegram
+`<NEXT_PUBLIC_SITE_URL>/api/bot`. Требуется HTTPS и публичный домен (не localhost).
 
 ### Privacy mode
 
-Бот работает с дефолтным privacy mode (ON). Кнопки в служебном чате присылают
-`callback_query` независимо от privacy mode, так что нам этого хватает. Если в
-будущем понадобится, чтобы бот видел все сообщения в группе, отключить через
+Дефолтный (ON). Кнопки в служебном чате присылают `callback_query`
+независимо от privacy mode — этого хватает. Если в будущем понадобится,
+чтобы бот видел все сообщения в группе, отключи через
 `@BotFather → /mybots → <bot> → Bot Settings → Group Privacy → Turn off`.
+
+---
+
+## Как развернуть ещё один магазин по этому же коду
+
+1. **Сделать форк репозитория** (или клонировать в новый репо). Желательно
+   менять только `.env` и `config.json` — код остаётся общим. Так фиксы и
+   фичи можно подтягивать `git pull upstream`.
+2. **Создать новый проект в Supabase** ([dashboard.supabase.com](https://supabase.com)) →
+   получить connection string (Session mode, порт 5432) и `service_role`
+   secret-key (Settings → API Keys → secret).
+3. **Создать нового бота** через [@BotFather](https://t.me/BotFather) →
+   скопировать `BOT_TOKEN`.
+4. **Создать канал** в Telegram (приватный или публичный), добавить бота
+   **админом** с правами: пост сообщений, редактирование, удаление.
+5. **Создать служебный чат** (супергруппу) в Telegram, добавить туда бота
+   (как **админа** с правом удалять сообщения — нужно для смены фото
+   товара) и всех работников магазина. Получить chat_id через [@getidsbot](https://t.me/getidsbot)
+   (id супергруппы начинается с `-100...`).
+6. **Заполнить `.env`** (см. таблицу выше) и **`config.json`**:
+   ```json
+   {
+     "storeName": "Название магазина",
+     "sellerUsername": "telegram_username_продавца",
+     "channelUsername": "telegram_username_канала",
+     "currency": "₽"
+   }
+   ```
+7. **Задеплоить на Vercel**:
+   - Import Git Repository → выбрать форк
+   - Framework Preset: **Next.js**
+   - В **Settings → Environment Variables** скопировать **все** переменные
+     из `.env` (Vercel не читает локальный `.env` — нужно вставить руками)
+   - Deploy → получить production URL
+   - Обновить `NEXT_PUBLIC_SITE_URL` (в Vercel и локально) на production URL
+     → Redeploy
+8. **Применить миграции** к новой Supabase БД:
+   ```bash
+   npx prisma migrate deploy
+   ```
+9. **Залить seed** (одна категория + владелец):
+   ```bash
+   npx tsx scripts/seed.ts
+   ```
+10. **Установить webhook бота**:
+    ```bash
+    npx tsx scripts/set-webhook.ts
+    ```
+11. **Создать публичный bucket в Supabase Storage** с именем из
+    `SUPABASE_BUCKET` (по умолчанию `product-photos`). В настройках бакета
+    включить **Public bucket = ON** (иначе картинки не отдадутся на сайт).
+12. **Проверка**:
+    - В Telegram: написать боту `/start` (от владельца) → должен ответить меню команд OWNER
+    - На сайте: открыть `https://<твой-домен>.vercel.app` → должна показаться витрина
+
+Готово. Магазины полностью независимы — каждый со своей БД, своим хранилищем,
+своим ботом и своим доменом, но из одного кодовой базы.
+
+---
 
 ## Этапы разработки
 
-- [x] **Этап 0** — инициализация проекта, структура папок, конфиги
-- [x] **Этап 1** — схема БД (`Worker`, `Category`, `Product`, `Photo`), `lib/db.ts`, миграция, seed
-- [x] **Этап 2** — webhook бота, `whitelist` + `privateOnly` middleware, `/start`, заглушки команд, `set-webhook`
-- [x] **Этап 3** — команды владельца: `/add_worker`, `/remove_worker`, `/list_workers`, `/add_category`, `/remove_category`, `/list_categories`. Подключён `@grammyjs/conversations`. Middleware `ownerOnly`. В диалогах работает `/cancel` для выхода.
-- [x] **Этап 4** — `/add_product` (доступна WORKER и OWNER): 7-шаговый диалог. Фото 1..10 → категория (inline) → размер XS..XXL (inline) → состояние (1..10) → цена → превью альбомом → «Опубликовать»/«Отмена». При публикации: фото скачивается из Telegram, грузится в Supabase Storage, сохраняется `Product` + `Photo[]` в БД (telegramFileId сохраняется для будущих перепубликаций).
-- [x] **Этап 5** — публикация товара в канал. `lib/bot/channel.ts` с `buildCaption` + `publishToChannel` (sendMediaGroup с telegramFileId) и заглушками `updateChannelCaption` / `deleteChannelPost` / `markChannelAsSold` / `restoreChannelFromSold` для Этапов 7-8. После публикации message_id сохраняются в `Product.channelMessageIds`.
-- [x] **Этап 6** — копия товара в служебный чат. `lib/bot/service-chat.ts` с `sendToServiceChat` (альбом + отдельное сообщение с inline-кнопками «✏️ Редактировать» / «❌ Нет в наличии») и заглушками для Этапов 7-8. Callback-обработчики `edit:` / `sold:` отвечают «на следующем этапе». `Product.serviceMediaMessageIds` + `serviceMessageId` сохраняются.
-- [x] **Этап 7** — редактирование товара через служебный чат. Клик «✏️ Редактировать» → бот ставит edit-lock в служебном чате + шлёт в ЛС работнику меню полей. После завершения — обновляются пост в канале и служебное сообщение. Поля: категория (inline), размер (inline), состояние/цена (текст), фото (in-place через editMessageMedia при том же количестве, иначе пересоздание). MVP без лока на параллельное редактирование двумя работниками.
-- [x] **Этап 8** — SOLD-флоу. Кнопка «❌ Нет в наличии» в служебном чате → `Product.status = SOLD`, caption в канале дополняется «❌ ПРОДАНО», сообщение с кнопками в служебном чате меняется на «❌ ПРОДАНО · Товар №X · ...» + одна кнопка «✅ Вернуть в наличие». Восстановление статуса — зеркально. Idempotent (повторный клик отвечает «Уже продано» / «Уже в наличии»).
-- [x] **Этап 9** — API товаров и категорий. `GET /api/products` с фильтрами (category/size/conditionMin/Max/priceMin/Max), сортировкой (new/price_asc/price_desc), пагинацией (page, limit до 60). `GET /api/products/[id]` — один товар (404 если SOLD). `GET /api/categories` — список категорий. SOLD-товары жёстко скрыты везде. Типы в `lib/api-types.ts` для последующего UI.
-- [x] **Этап 10** — функциональные страницы сайта (без CSS). Главная (`app/page.tsx`) — client component с формой фильтров и списком карточек; страница товара (`app/products/[id]/page.tsx`) — server component с фото, описанием, заглушкой «Купить».
-- [x] **Этап 11** — кнопка «Купить в Telegram» на странице товара. Deep link `https://t.me/{sellerUsername}?text=...` с pre-filled сообщением о товаре. Открывается в новой вкладке. `sellerUsername` берётся из `config.json`.
+- [x] **Этап 0** — инициализация: Next.js, структура папок, конфиги
+- [x] **Этап 1** — схема БД (Worker, Category, Product, Photo, BotSession), миграции, seed
+- [x] **Этап 2** — webhook бота, whitelist + privateOnly, `/start`, `set-webhook.ts`
+- [x] **Этап 3** — команды владельца через `@grammyjs/conversations`, middleware `ownerOnly`
+- [x] **Этап 4** — `/add_product` (фото 1..10 → категория → размер → состояние → цена → превью → публикация). Pipeline upload Telegram→Supabase Storage
+- [x] **Этап 5** — публикация товара в канал (`sendMediaGroup`), сохранение channelMessageIds
+- [x] **Этап 6** — копия в служебный чат (альбом + сообщение с кнопками «Редактировать»/«Нет в наличии»)
+- [x] **Этап 7** — редактирование товара через служебный чат. Для смены фото — `editMessageMedia` in-place при том же количестве, иначе пересоздание поста
+- [x] **Этап 8** — SOLD-флоу: «❌ Нет в наличии» / «✅ Вернуть в наличие», метка в канале и в служебном чате
+- [x] **Этап 9** — API товаров и категорий (`GET /api/products`, `/api/products/[id]`, `/api/categories`)
+- [x] **Этап 10** — функциональные страницы сайта (главная с фильтрами, страница товара) без CSS
+- [x] **Этап 11** — кнопка «Купить в Telegram» — deep link с pre-filled сообщением продавцу
+- [x] **Этап 12** — финальная универсализация: всё магазин-зависимое в `config.json` / `.env`, метаданные сайта из config, ссылка на канал, README с инструкцией про второй магазин
+
+---
+
+## MVP-ограничения (документированы для будущей работы)
+
+- **Параллельное редактирование двумя работниками**: первый завершивший
+  перетирает работу второго. Нужно поле `Product.editingByWorkerId` с
+  таймаутом.
+- **`@grammyjs/conversations` storage**: Prisma-based, всё через таблицу
+  `BotSession`. На большой нагрузке (>10 одновременных диалогов) стоит
+  заменить на Redis.
+- **Supabase pooler + adapter-pg**: на бесплатном тарифе изредка случаются
+  flap'ы (P1017 ConnectionClosed). Митигировано через TCP keepAlive +
+  retry. Радикально решает Prisma Accelerate или Neon serverless адаптер.

@@ -307,6 +307,25 @@ export default function Home() {
           )}
         </>
       )}
+
+      {config.channelUsername && (
+        <footer
+          style={{
+            marginTop: 32,
+            paddingTop: 16,
+            borderTop: "1px solid #ccc",
+            fontSize: 14,
+          }}
+        >
+          Новые товары первыми в нашем Telegram-канале:{" "}
+          <a
+            href={`https://t.me/${config.channelUsername}`}
+            rel="noopener"
+          >
+            @{config.channelUsername}
+          </a>
+        </footer>
+      )}
     </main>
   );
 }
