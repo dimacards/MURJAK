@@ -25,8 +25,12 @@ type CollectedPhoto = { fileId: string };
  */
 export async function addProductConversation(
   conversation: AppConversation,
-  ctx: AppContext
+  ctx: AppContext,
+  workerId: number
 ): Promise<void> {
+  // ⚠️ Нельзя использовать ctx.worker внутри conversation-функции —
+  // outer middleware (whitelist) не запускается на replay внутри conversation,
+  // поэтому ctx.worker там undefined. ID работника прокидываем явно через enter().
   // ── Шаг 1: фото ───────────────────────────────────────────────────────────
   const photos: CollectedPhoto[] = [];
 
@@ -278,14 +282,18 @@ export async function addProductConversation(
       );
       uploaded.push({ telegramFileId: p.fileId, ...result });
 
-      // Прогресс на каждое успешное фото (без падения если edit не пройдёт)
-      await ctx.api
-        .editMessageText(
-          ctx.chat!.id,
-          progress.message_id,
-          `Загружаю фото в хранилище (${i + 1}/${photos.length})...`
-        )
-        .catch(() => {});
+      // Прогресс на каждое успешное фото. Никогда не должно ронять основной флоу:
+      // обращаемся к ctx.chat через optional chaining и оборачиваем в catch.
+      const chatId = ctx.chat?.id;
+      if (chatId !== undefined) {
+        await ctx.api
+          .editMessageText(
+            chatId,
+            progress.message_id,
+            `Загружаю фото в хранилище (${i + 1}/${photos.length})...`
+          )
+          .catch(() => {});
+      }
     }
   } catch (e) {
     console.error("Upload failed:", e);
@@ -307,7 +315,7 @@ export async function addProductConversation(
         channelMessageIds: [],
         serviceMessageId: null,
         serviceMediaMessageIds: [],
-        createdById: ctx.worker.id,
+        createdById: workerId,
         photos: {
           create: uploaded.map((u, idx) => ({
             storagePath: u.storagePath,

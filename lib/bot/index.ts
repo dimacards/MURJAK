@@ -48,8 +48,10 @@ bot.use(createConversation(addProductConversation, "addProductConversation"));
 bot.command("start", privateOnly, startHandler);
 
 // /add_product — доступна WORKER и OWNER.
+// Прокидываем workerId явно — внутри conversation ctx.worker недоступен
+// (см. коммент в conversations/add-product.ts).
 bot.command("add_product", privateOnly, async (ctx) => {
-  await ctx.conversation.enter("addProductConversation");
+  await ctx.conversation.enter("addProductConversation", ctx.worker.id);
 });
 
 // OWNER-only команды.
