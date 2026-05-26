@@ -1,0 +1,82 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  // URL и driver adapter настраиваются в prisma.config.ts (Prisma 7+).
+  // DATABASE_URL — pooled (6543, pgbouncer) для рантайма.
+  // DIRECT_URL   — direct (5432) для миграций.
+  provider = "postgresql"
+}
+
+// ─── Enums ────────────────────────────────────────────────────────────────────
+
+enum Role {
+  OWNER
+  WORKER
+}
+
+enum Size {
+  XS
+  S
+  M
+  L
+  XL
+  XXL
+}
+
+enum ProductStatus {
+  ACTIVE
+  SOLD
+}
+
+// ─── Models ───────────────────────────────────────────────────────────────────
+
+model Worker {
+  id         Int      @id @default(autoincrement())
+  telegramId BigInt   @unique
+  name       String
+  role       Role
+  createdAt  DateTime @default(now())
+
+  products Product[] @relation("CreatedBy")
+}
+
+model Category {
+  id        Int      @id @default(autoincrement())
+  name      String   @unique
+  createdAt DateTime @default(now())
+
+  products Product[]
+}
+
+model Product {
+  id                Int           @id @default(autoincrement())
+  categoryId        Int
+  size              Size
+  condition         Int           // 1..10
+  price             Int           // рубли
+  status            ProductStatus @default(ACTIVE)
+  channelMessageIds      Int[]    // message_id-ы постов в канале (альбом = несколько сообщений)
+  serviceMessageId       Int?     // message_id текстового сообщения с кнопками «Редактировать»/«Нет в наличии» в служебном чате
+  serviceMediaMessageIds Int[]    // message_id-ы медиа-альбома в служебном чате (для пересоздания при смене фото)
+  createdById       Int
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime      @updatedAt
+
+  category  Category @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  createdBy Worker   @relation("CreatedBy", fields: [createdById], references: [id])
+  photos    Photo[]
+}
+
+model Photo {
+  id             Int      @id @default(autoincrement())
+  productId      Int
+  storagePath    String   // путь в Supabase Storage (например: products/42/0.jpg)
+  publicUrl      String   // публичная ссылка для отображения на сайте и в боте
+  telegramFileId String?  // file_id фото в Telegram (для быстрых пере-публикаций без повторной загрузки)
+  order          Int      // порядок отображения (0 = первое/главное фото)
+  createdAt      DateTime @default(now())
+
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+}
