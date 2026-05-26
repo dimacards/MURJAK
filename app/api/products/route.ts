@@ -138,13 +138,6 @@ export async function GET(req: Request) {
     return Response.json(body);
   } catch (e) {
     console.error("GET /api/products failed:", e);
-    // ВРЕМЕННЫЙ debug: возвращаем текст ошибки прямо в ответе, чтобы понять,
-    // что валится в продакшне без доступа к Vercel logs. УБРАТЬ после фикса.
-    const message = e instanceof Error ? e.message : String(e);
-    const stack = e instanceof Error ? e.stack?.split("\n").slice(0, 5).join("\n") : undefined;
-    return Response.json(
-      { error: "Internal error", debug: message, stack },
-      { status: 500 }
-    );
+    return Response.json({ error: "Internal error" }, { status: 500 });
   }
 }

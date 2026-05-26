@@ -35,9 +35,19 @@ function createClient() {
   // на котором сервер вешает соединение → P1017 «ConnectionClosed».
   // rejectUnauthorized: false — Supabase использует свой/прокси-сертификат,
   // strict-валидация бессмысленна для serverless без правильных CA.
+  //
+  // keepAlive + keepAliveInitialDelay: TCP keepalive-пакеты каждые ~10 секунд,
+  // чтобы Supabase pooler не закрывал idle-коннект между запросами. Без этого
+  // на серверлес-инстансе, который висит warm, коннект протухает за ~минуту,
+  // и следующий запрос падает 500 (P1017 ConnectionClosed). Singleton-клиент
+  // не умеет сам пересоздать pg.Pool, поэтому только передеплой "лечит".
   const adapter = new PrismaPg({
     connectionString: url,
     ssl: { rejectUnauthorized: false },
+    keepAlive: true,
+    // keepAliveInitialDelay есть в pg-нативном API, но в @types/pg его пока нет —
+    // cast'имся через any только на этот ключ.
+    ...({ keepAliveInitialDelay: 10_000 } as Record<string, number>),
   });
 
   const base = new PrismaClient({
