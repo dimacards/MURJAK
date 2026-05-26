@@ -57,3 +57,28 @@ export async function privateOnly(
   if (ctx.chat?.type !== "private") return;
   await next();
 }
+
+/**
+ * ownerOnly: пропускает только если ctx.worker.role === "OWNER".
+ * Ставится ПОСЛЕ whitelist (тот гарантирует наличие ctx.worker).
+ *
+ * Для обычных сообщений отвечает текстом, для callback_query — через
+ * answerCallbackQuery (чтобы не вешать спиннер «бот думает»).
+ */
+export async function ownerOnly(
+  ctx: AppContext,
+  next: NextFunction
+): Promise<void> {
+  if (ctx.worker.role !== "OWNER") {
+    if (ctx.callbackQuery) {
+      await ctx.answerCallbackQuery({
+        text: "Это команда только для владельца.",
+        show_alert: false,
+      });
+    } else {
+      await ctx.reply("Это команда только для владельца.");
+    }
+    return;
+  }
+  await next();
+}

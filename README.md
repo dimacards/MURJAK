@@ -131,3 +131,4 @@ npx tsx scripts/set-webhook.ts
 - [x] **Этап 0** — инициализация проекта, структура папок, конфиги
 - [x] **Этап 1** — схема БД (`Worker`, `Category`, `Product`, `Photo`), `lib/db.ts`, миграция, seed
 - [x] **Этап 2** — webhook бота, `whitelist` + `privateOnly` middleware, `/start`, заглушки команд, `set-webhook`
+- [x] **Этап 3** — команды владельца: `/add_worker`, `/remove_worker`, `/list_workers`, `/add_category`, `/remove_category`, `/list_categories`. Подключён `@grammyjs/conversations`. Middleware `ownerOnly`. В диалогах работает `/cancel` для выхода.
