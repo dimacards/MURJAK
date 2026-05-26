@@ -1,6 +1,6 @@
 import { InlineKeyboard, type Api } from "grammy";
 import type { Category, Photo, Product } from "@prisma/client";
-import { buildCaption } from "./channel";
+import { buildCaption, SOLD_MARK } from "./channel";
 import { prisma } from "../db";
 import { isNotModifiedError } from "./telegram-utils";
 
@@ -252,16 +252,42 @@ export async function deleteServicePost(
   });
 }
 
+/** Текст сообщения-индикатора для проданного товара. */
+function buildSoldServiceText(product: ProductForService): string {
+  return `${SOLD_MARK} · Товар №${product.id} · ${product.category.name} · ${product.price} ₽`;
+}
+
+/** Одна кнопка возврата в наличие. */
+function buildSoldServiceKeyboard(productId: number): InlineKeyboard {
+  return new InlineKeyboard().text(
+    "✅ Вернуть в наличие",
+    `restock:${productId}`
+  );
+}
+
 /**
- * Меняет кнопки на одну «Вернуть в наличие» (callback: `restore:{id}`)
- * + добавляет «(ПРОДАНО)» к тексту сообщения с кнопками.
+ * Помечает товар как продано в служебном чате: меняет текст сообщения
+ * с кнопками на «❌ ПРОДАНО · ...» и оставляет одну кнопку «Вернуть в наличие».
  *
- * TODO Этап 8: api.editMessageText с новой клавиатурой:
- *   new InlineKeyboard().text("✅ Вернуть в наличие", `restore:${id}`).
+ * Альбом-сообщение в служебном чате (serviceMediaMessageIds) намеренно
+ * НЕ трогается — там остаётся фото как референс.
  */
 export async function markServiceAsSold(
-  _api: Api,
-  _product: ProductForService
+  api: Api,
+  product: ProductForService
 ): Promise<void> {
-  throw new Error("TODO markServiceAsSold — будет на Этапе 8");
+  if (!SERVICE_CHAT_ID) throw new Error("SERVICE_CHAT_ID не задан в .env");
+  if (!product.serviceMessageId) return;
+
+  await api
+    .editMessageText(
+      SERVICE_CHAT_ID,
+      product.serviceMessageId,
+      buildSoldServiceText(product),
+      { reply_markup: buildSoldServiceKeyboard(product.id) }
+    )
+    .catch((e) => {
+      if (isNotModifiedError(e)) return;
+      throw e;
+    });
 }

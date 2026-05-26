@@ -166,28 +166,43 @@ export async function deleteChannelPost(
   });
 }
 
-/**
- * Помечает товар в канале как «❌ ПРОДАНО» — дописывает строку в подпись.
- *
- * TODO Этап 8: api.editMessageCaption первого сообщения, новый caption =
- * buildCaption(product) + "\n❌ ПРОДАНО".
- */
-export async function markChannelAsSold(
-  _api: Api,
-  _product: ProductForChannel
-): Promise<void> {
-  throw new Error("TODO markChannelAsSold — будет реализовано на Этапе 8");
+/** Метка «продано», префикс к caption и тексту служебного сообщения. */
+export const SOLD_MARK = "❌ ПРОДАНО";
+
+/** Подпись для проданного товара: «❌ ПРОДАНО» + пустая строка + обычная подпись. */
+export function buildSoldCaption(product: ProductForChannel): string {
+  return `${SOLD_MARK}\n\n${buildCaption(product)}`;
 }
 
 /**
- * Возвращает товар в продажу: убирает «❌ ПРОДАНО» из подписи.
- *
- * TODO Этап 8: api.editMessageCaption первого сообщения, восстановить
- * чистый buildCaption(product).
+ * Помечает товар в канале как продано — редактирует подпись первого
+ * сообщения альбома, дописывая в начало «❌ ПРОДАНО».
+ */
+export async function markChannelAsSold(
+  api: Api,
+  product: ProductForChannel
+): Promise<void> {
+  if (!CHANNEL_ID) throw new Error("CHANNEL_ID не задан в .env");
+  if (product.channelMessageIds.length === 0) return;
+
+  await api
+    .editMessageCaption(CHANNEL_ID, product.channelMessageIds[0], {
+      caption: buildSoldCaption(product),
+    })
+    .catch((e) => {
+      if (isNotModifiedError(e)) return;
+      throw e;
+    });
+}
+
+/**
+ * Возвращает товар в продажу: убирает «❌ ПРОДАНО» из подписи (восстанавливает
+ * чистый buildCaption). Семантически отдельная функция, но реализация
+ * совпадает с updateChannelCaption.
  */
 export async function restoreChannelFromSold(
-  _api: Api,
-  _product: ProductForChannel
+  api: Api,
+  product: ProductForChannel
 ): Promise<void> {
-  throw new Error("TODO restoreChannelFromSold — будет реализовано на Этапе 8");
+  return updateChannelCaption(api, product);
 }

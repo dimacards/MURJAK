@@ -24,6 +24,7 @@ import {
   type EditField,
 } from "./conversations/edit-product";
 import { onEditClick, onEditCancel } from "./handlers/edit";
+import { onSoldClick, onRestockClick } from "./handlers/sold";
 
 const token = process.env.BOT_TOKEN;
 if (!token) {
@@ -111,9 +112,5 @@ bot.callbackQuery(
   }
 );
 
-bot.callbackQuery(/^sold:(\d+)$/, async (ctx) => {
-  await ctx.answerCallbackQuery({
-    text: "Пометка «Нет в наличии» — на следующем этапе.",
-    show_alert: true,
-  });
-});
+bot.callbackQuery(/^sold:(\d+)$/, onSoldClick);
+bot.callbackQuery(/^restock:(\d+)$/, onRestockClick);
