@@ -16,7 +16,16 @@ const globalForPrisma = globalThis as unknown as {
 function createClient() {
   const url = process.env.DATABASE_URL;
   if (!url) throw new Error("DATABASE_URL не задан");
-  const adapter = new PrismaPg({ connectionString: url });
+
+  // Supabase pooler требует TLS. Без явного ssl в config pg отдаст plain TCP,
+  // на котором сервер вешает соединение → P1017 «ConnectionClosed».
+  // rejectUnauthorized: false — Supabase использует свой/прокси-сертификат,
+  // strict-валидация бессмысленна для serverless без правильных CA.
+  const adapter = new PrismaPg({
+    connectionString: url,
+    ssl: { rejectUnauthorized: false },
+  });
+
   return new PrismaClient({
     adapter,
     log: process.env.NODE_ENV === "development" ? ["warn", "error"] : ["error"],
