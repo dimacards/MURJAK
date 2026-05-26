@@ -3,6 +3,7 @@ import type { Size } from "@prisma/client";
 import { prisma } from "../../db";
 import type { AppContext, AppConversation } from "../types";
 import { uploadTelegramPhotoToSupabase } from "../upload";
+import { publishToChannel } from "../channel";
 
 const SIZES: Size[] = ["XS", "S", "M", "L", "XL", "XXL"];
 const MAX_PHOTOS = 10;
@@ -329,8 +330,34 @@ export async function addProductConversation(
     })
   );
 
+  // ── Шаг 8: публикация в канал ─────────────────────────────────────────────
+  let channelMessageIds: number[];
+  try {
+    channelMessageIds = await publishToChannel(
+      ctx.api,
+      product,
+      product.photos
+    );
+  } catch (e) {
+    console.error("publishToChannel failed:", e);
+    await ctx.reply(
+      `Товар сохранён в БД (id=${product.id}), но не удалось опубликовать в канал:\n` +
+        `${e instanceof Error ? e.message : String(e)}\n\n` +
+        `Проверь, что бот добавлен в канал как админ с правом постинга.`
+    );
+    return;
+  }
+
+  // Сохраняем message_id-ы в БД — пригодятся для последующих editCaption /
+  // delete / SOLD-операций (Этапы 7–8).
+  await conversation.external(() =>
+    prisma.product.update({
+      where: { id: product.id },
+      data: { channelMessageIds },
+    })
+  );
+
   await ctx.reply(
-    `Товар сохранён в базу (id=${product.id}, фото: ${product.photos.length}). ` +
-      `Публикация в канал — на следующем этапе.`
+    "✅ Товар опубликован в канале. (Отправка в служебный чат — на следующем этапе)"
   );
 }
