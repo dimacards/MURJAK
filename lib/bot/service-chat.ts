@@ -172,6 +172,49 @@ export async function restoreServiceButtons(
 }
 
 /**
+ * Редактирует фото в служебном альбоме «один-к-одному» через editMessageMedia.
+ * Message_id-ы сохраняются. Аналог editChannelMedia для служебного чата.
+ *
+ * Требует совпадения количества фото с serviceMediaMessageIds.
+ */
+export async function editServiceMedia(
+  api: Api,
+  product: ProductForService,
+  photos: Photo[]
+): Promise<void> {
+  if (!SERVICE_CHAT_ID) throw new Error("SERVICE_CHAT_ID не задан в .env");
+  if (product.serviceMediaMessageIds.length === 0) return;
+  if (photos.length !== product.serviceMediaMessageIds.length) {
+    throw new Error(
+      `editServiceMedia: количество фото (${photos.length}) не совпадает ` +
+        `с количеством сообщений альбома в служебном чате ` +
+        `(${product.serviceMediaMessageIds.length}). Для смены количества — ` +
+        `deleteServicePost + sendToServiceChat.`
+    );
+  }
+
+  const sorted = [...photos].sort((a, b) => a.order - b.order);
+  const caption = buildCaption(product);
+
+  for (let i = 0; i < sorted.length; i++) {
+    const photo = sorted[i];
+    const messageId = product.serviceMediaMessageIds[i];
+    const isFirst = i === 0;
+
+    await api
+      .editMessageMedia(SERVICE_CHAT_ID, messageId, {
+        type: "photo",
+        media: photo.telegramFileId ?? photo.publicUrl,
+        ...(isFirst ? { caption } : {}),
+      })
+      .catch((e) => {
+        if (isNotModifiedError(e)) return;
+        throw e;
+      });
+  }
+}
+
+/**
  * Удаляет из служебного чата и альбом, и сообщение с кнопками.
  * Очищает соответствующие поля в БД (serviceMediaMessageIds и serviceMessageId).
  * Используется при смене фото — пост пересоздаётся, как и в канале.

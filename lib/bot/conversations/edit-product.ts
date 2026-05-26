@@ -6,11 +6,13 @@ import type { AppContext, AppConversation } from "../types";
 import { uploadTelegramPhotoToSupabase } from "../upload";
 import {
   deleteChannelPost,
+  editChannelMedia,
   publishToChannel,
   updateChannelCaption,
 } from "../channel";
 import {
   deleteServicePost,
+  editServiceMedia,
   restoreServiceButtons,
   sendToServiceChat,
   updateServiceCaption,
@@ -415,8 +417,37 @@ async function editPhotos(
   );
   if (!updated) throw new Error("Товар исчез после обновления фото");
 
-  // ─ Канал: удалить старый пост + публикация заново ─
-  await ctx.reply("Пересоздаю пост в канале...");
+  // ─ Если количество фото не изменилось — редактируем альбом «на месте»
+  //   (editMessageMedia). Подписчики канала не получают уведомление, в
+  //   служебном чате не возникает спама. Message_id остаются прежними.
+  //   Если количество разное — Telegram не позволяет менять размер media
+  //   group, придётся пересоздавать.
+  const sameCount =
+    product.photos.length === updated.photos.length &&
+    product.channelMessageIds.length === updated.photos.length &&
+    product.serviceMediaMessageIds.length === updated.photos.length;
+
+  if (sameCount) {
+    await ctx.reply("Обновляю альбом в канале и служебном чате...");
+
+    await editChannelMedia(ctx.api, updated, updated.photos);
+    await editServiceMedia(ctx.api, updated, updated.photos);
+
+    // Сообщение с кнопками в служебном чате сейчас в edit-lock'е —
+    // нужно вернуть его в исходный вид (текст + 2 кнопки).
+    await restoreServiceButtons(ctx.api, updated);
+
+    await ctx.reply(
+      `Готово. Товар №${product.id} обновлён. Фото отредактированы на месте.`
+    );
+    return;
+  }
+
+  // ─ Иначе — пересоздание (старый путь) ─
+  await ctx.reply(
+    `Количество фото изменилось (${product.photos.length} → ${updated.photos.length}). ` +
+      `Пересоздаю пост в канале...`
+  );
   await deleteChannelPost(ctx.api, updated); // очищает channelMessageIds в БД
   const newChannelIds = await publishToChannel(
     ctx.api,
@@ -430,10 +461,7 @@ async function editPhotos(
     })
   );
 
-  // ─ Служебный чат: удалить старый альбом+сообщение, создать новые ─
   await ctx.reply("Пересоздаю в служебном чате...");
-  // Используем updated, но deleteServicePost читает serviceMediaMessageIds и
-  // serviceMessageId из переданного объекта — они актуальны (до этого не меняли).
   await deleteServicePost(ctx.api, updated);
   const newServiceIds = await sendToServiceChat(
     ctx.api,

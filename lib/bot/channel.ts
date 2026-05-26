@@ -91,6 +91,53 @@ export async function updateChannelCaption(
 }
 
 /**
+ * Редактирует фото в опубликованном альбоме «один-к-одному» через
+ * editMessageMedia. Message_id-ы сохраняются, подписчики канала не получают
+ * уведомление о новом посте.
+ *
+ * Требует, чтобы количество photos совпадало с количеством сохранённых
+ * channelMessageIds — Telegram не позволяет добавлять/удалять элементы
+ * media group после публикации.
+ *
+ * Подпись (caption) обновляется на первом сообщении.
+ */
+export async function editChannelMedia(
+  api: Api,
+  product: ProductForChannel,
+  photos: Photo[]
+): Promise<void> {
+  if (!CHANNEL_ID) throw new Error("CHANNEL_ID не задан в .env");
+  if (product.channelMessageIds.length === 0) return;
+  if (photos.length !== product.channelMessageIds.length) {
+    throw new Error(
+      `editChannelMedia: количество фото (${photos.length}) не совпадает ` +
+        `с количеством сообщений альбома в канале (${product.channelMessageIds.length}). ` +
+        `Для смены количества фото используй deleteChannelPost + publishToChannel.`
+    );
+  }
+
+  const sorted = [...photos].sort((a, b) => a.order - b.order);
+  const caption = buildCaption(product);
+
+  for (let i = 0; i < sorted.length; i++) {
+    const photo = sorted[i];
+    const messageId = product.channelMessageIds[i];
+    const isFirst = i === 0;
+
+    await api
+      .editMessageMedia(CHANNEL_ID, messageId, {
+        type: "photo",
+        media: photo.telegramFileId ?? photo.publicUrl,
+        ...(isFirst ? { caption } : {}),
+      })
+      .catch((e) => {
+        if (isNotModifiedError(e)) return;
+        throw e;
+      });
+  }
+}
+
+/**
  * Удаляет все сообщения альбома из канала + очищает `channelMessageIds` в БД.
  * Используется при смене фото: Telegram не разрешает редактировать медиа в
  * опубликованном альбоме, поэтому пост удаляется и публикуется заново.
