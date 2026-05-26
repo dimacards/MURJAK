@@ -19,6 +19,11 @@ import {
   onRemoveCategoryCallback,
 } from "./handlers/owner";
 import { addProductConversation } from "./conversations/add-product";
+import {
+  editProductConversation,
+  type EditField,
+} from "./conversations/edit-product";
+import { onEditClick, onEditCancel } from "./handlers/edit";
 
 const token = process.env.BOT_TOKEN;
 if (!token) {
@@ -43,6 +48,9 @@ bot.use(
 bot.use(createConversation(addWorkerConversation, "addWorkerConversation"));
 bot.use(createConversation(addCategoryConversation, "addCategoryConversation"));
 bot.use(createConversation(addProductConversation, "addProductConversation"));
+bot.use(
+  createConversation(editProductConversation, "editProductConversation")
+);
 
 // 3. Команды (все требуют privateOnly — работают только в ЛС).
 bot.command("start", privateOnly, startHandler);
@@ -79,14 +87,29 @@ bot.callbackQuery(
   onRemoveCategoryCallback
 );
 
-// 5. Кнопки служебного чата (edit:/sold:) — пока заглушки, доступны любому
-// whitelisted работнику. Реальная логика на Этапах 7 (edit) и 8 (sold).
-bot.callbackQuery(/^edit:(\d+)$/, async (ctx) => {
-  await ctx.answerCallbackQuery({
-    text: "Редактирование товара — на следующем этапе.",
-    show_alert: true,
-  });
-});
+// 5. Кнопки служебного чата:
+//    edit:{id}            — клик в служебном чате, бот пишет в ЛС меню полей.
+//    editcancel:{id}      — клик в ЛС, отмена редактирования, возврат кнопок.
+//    editfield:{id}:{f}   — клик в ЛС, входит в editProductConversation.
+//    sold:{id}            — заглушка до Этапа 8.
+
+bot.callbackQuery(/^edit:(\d+)$/, onEditClick);
+bot.callbackQuery(/^editcancel:(\d+)$/, onEditCancel);
+
+bot.callbackQuery(
+  /^editfield:(\d+):(photos|category|size|condition|price)$/,
+  async (ctx) => {
+    const match = ctx.match as RegExpMatchArray | undefined;
+    const productId = Number(match?.[1]);
+    const field = match?.[2] as EditField;
+    await ctx.answerCallbackQuery();
+    await ctx.conversation.enter(
+      "editProductConversation",
+      productId,
+      field
+    );
+  }
+);
 
 bot.callbackQuery(/^sold:(\d+)$/, async (ctx) => {
   await ctx.answerCallbackQuery({

@@ -1,5 +1,6 @@
 import type { Api } from "grammy";
 import type { Category, Photo, Product } from "@prisma/client";
+import { prisma } from "../db";
 
 const CHANNEL_ID = process.env.CHANNEL_ID;
 
@@ -66,30 +67,49 @@ export async function publishToChannel(
 /**
  * Редактирует подпись первого сообщения альбома в канале — нужно при
  * редактировании категории/размера/состояния/цены товара (фото не меняются).
- *
- * TODO Этап 7: реализовать через
- *   api.editMessageCaption(CHANNEL_ID, product.channelMessageIds[0],
- *     { caption: buildCaption(product) })
  */
 export async function updateChannelCaption(
-  _api: Api,
-  _product: ProductForChannel
+  api: Api,
+  product: ProductForChannel
 ): Promise<void> {
-  throw new Error("TODO updateChannelCaption — будет реализовано на Этапе 7");
+  if (!CHANNEL_ID) throw new Error("CHANNEL_ID не задан в .env");
+  if (product.channelMessageIds.length === 0) {
+    // Поста в канале нет (например, публикация когда-то упала) — нечего обновлять.
+    return;
+  }
+
+  await api.editMessageCaption(CHANNEL_ID, product.channelMessageIds[0], {
+    caption: buildCaption(product),
+  });
 }
 
 /**
- * Удаляет все сообщения альбома из канала. Используется при смене фото:
- * Telegram не разрешает редактировать медиа в опубликованном альбоме, поэтому
- * старый пост удаляется и публикуется заново.
+ * Удаляет все сообщения альбома из канала + очищает `channelMessageIds` в БД.
+ * Используется при смене фото: Telegram не разрешает редактировать медиа в
+ * опубликованном альбоме, поэтому пост удаляется и публикуется заново.
  *
- * TODO Этап 7: цикл по product.channelMessageIds с api.deleteMessage.
+ * deleteMessage оборачивается в catch — если сообщение уже удалено вручную
+ * админом или истёк срок удаления (>48h для не-админа), это не должно
+ * валить весь флоу.
  */
 export async function deleteChannelPost(
-  _api: Api,
-  _product: ProductForChannel
+  api: Api,
+  product: ProductForChannel
 ): Promise<void> {
-  throw new Error("TODO deleteChannelPost — будет реализовано на Этапе 7");
+  if (!CHANNEL_ID) throw new Error("CHANNEL_ID не задан в .env");
+
+  for (const id of product.channelMessageIds) {
+    await api.deleteMessage(CHANNEL_ID, id).catch((e) => {
+      console.warn(
+        `channel deleteMessage failed for ${id}:`,
+        e instanceof Error ? e.message : e
+      );
+    });
+  }
+  await prisma.product.update({
+    where: { id: product.id },
+    data: { channelMessageIds: [] },
+  });
 }
 
 /**

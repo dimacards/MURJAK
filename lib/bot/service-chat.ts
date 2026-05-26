@@ -1,6 +1,7 @@
 import { InlineKeyboard, type Api } from "grammy";
 import type { Category, Photo, Product } from "@prisma/client";
 import { buildCaption } from "./channel";
+import { prisma } from "../db";
 
 const SERVICE_CHAT_ID = process.env.SERVICE_CHAT_ID;
 
@@ -76,48 +77,98 @@ export async function sendToServiceChat(
   };
 }
 
-// ─── Заглушки для последующих этапов ──────────────────────────────────────────
+/**
+ * Ставит «edit-lock» в служебном чате: меняет текст сообщения на
+ * «✏️ Редактирует: {имя}» и убирает inline-кнопки. Возврат — через
+ * restoreServiceButtons() после завершения или отмены редактирования.
+ */
+export async function setServiceEditLock(
+  api: Api,
+  product: ProductForService,
+  editorName: string
+): Promise<void> {
+  if (!SERVICE_CHAT_ID) throw new Error("SERVICE_CHAT_ID не задан в .env");
+  if (!product.serviceMessageId) return;
+
+  await api.editMessageText(
+    SERVICE_CHAT_ID,
+    product.serviceMessageId,
+    `✏️ Редактирует: ${editorName}. Закончит — кнопки вернутся.`,
+    { reply_markup: { inline_keyboard: [] } } // явно убираем клавиатуру
+  );
+}
 
 /**
- * Обновляет текст сообщения с кнопками в служебном чате
- * (например при смене категории или цены — они отображаются в строке-идентификаторе).
- *
- * TODO Этап 7: api.editMessageText(SERVICE_CHAT_ID, product.serviceMessageId,
- *   buildServiceControlText(product), { reply_markup: buildServiceControlKeyboard(product.id) }).
+ * Обновляет текст сообщения с кнопками в служебном чате — после
+ * редактирования товара (категория или цена меняют отображаемый текст).
+ * Также возвращает обе исходные кнопки в нормальное состояние.
  */
 export async function updateServiceMessage(
-  _api: Api,
-  _product: ProductForService
+  api: Api,
+  product: ProductForService
 ): Promise<void> {
-  throw new Error("TODO updateServiceMessage — будет на Этапе 7");
+  if (!SERVICE_CHAT_ID) throw new Error("SERVICE_CHAT_ID не задан в .env");
+  if (!product.serviceMessageId) return;
+
+  await api.editMessageText(
+    SERVICE_CHAT_ID,
+    product.serviceMessageId,
+    buildServiceControlText(product),
+    { reply_markup: buildServiceControlKeyboard(product.id) }
+  );
+}
+
+/**
+ * Возвращает обе кнопки «Редактировать» / «Нет в наличии» — после отмены
+ * редактирования (без изменения данных) или после возврата из SOLD.
+ *
+ * Семантически отличается от updateServiceMessage (данные не менялись),
+ * но реализация идентичная: текст и клавиатура — оба берутся из текущего
+ * состояния продукта.
+ */
+export async function restoreServiceButtons(
+  api: Api,
+  product: ProductForService
+): Promise<void> {
+  await updateServiceMessage(api, product);
 }
 
 /**
  * Удаляет из служебного чата и альбом, и сообщение с кнопками.
+ * Очищает соответствующие поля в БД (serviceMediaMessageIds и serviceMessageId).
  * Используется при смене фото — пост пересоздаётся, как и в канале.
  *
- * TODO Этап 7: цикл api.deleteMessage по product.serviceMediaMessageIds +
- * api.deleteMessage(SERVICE_CHAT_ID, product.serviceMessageId).
+ * deleteMessage обёрнут в catch — если сообщения уже удалены вручную или
+ * истёк срок удаления для не-админа (48h), это не должно валить флоу.
  */
 export async function deleteServicePost(
-  _api: Api,
-  _product: ProductForService
+  api: Api,
+  product: ProductForService
 ): Promise<void> {
-  throw new Error("TODO deleteServicePost — будет на Этапе 7");
-}
+  if (!SERVICE_CHAT_ID) throw new Error("SERVICE_CHAT_ID не задан в .env");
 
-/**
- * Возвращает обе кнопки «Редактировать» / «Нет в наличии» —
- * после возврата товара из SOLD в ACTIVE.
- *
- * TODO Этап 8: api.editMessageReplyMarkup или editMessageText с
- * buildServiceControlKeyboard.
- */
-export async function restoreServiceButtons(
-  _api: Api,
-  _product: ProductForService
-): Promise<void> {
-  throw new Error("TODO restoreServiceButtons — будет на Этапе 8");
+  for (const id of product.serviceMediaMessageIds) {
+    await api.deleteMessage(SERVICE_CHAT_ID, id).catch((e) => {
+      console.warn(
+        `service deleteMessage (media) failed for ${id}:`,
+        e instanceof Error ? e.message : e
+      );
+    });
+  }
+  if (product.serviceMessageId !== null) {
+    await api
+      .deleteMessage(SERVICE_CHAT_ID, product.serviceMessageId)
+      .catch((e) => {
+        console.warn(
+          `service deleteMessage (control) failed:`,
+          e instanceof Error ? e.message : e
+        );
+      });
+  }
+  await prisma.product.update({
+    where: { id: product.id },
+    data: { serviceMediaMessageIds: [], serviceMessageId: null },
+  });
 }
 
 /**
