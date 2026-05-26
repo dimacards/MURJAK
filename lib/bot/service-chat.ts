@@ -2,6 +2,7 @@ import { InlineKeyboard, type Api } from "grammy";
 import type { Category, Photo, Product } from "@prisma/client";
 import { buildCaption } from "./channel";
 import { prisma } from "../db";
+import { isNotModifiedError } from "./telegram-utils";
 
 const SERVICE_CHAT_ID = process.env.SERVICE_CHAT_ID;
 
@@ -90,18 +91,50 @@ export async function setServiceEditLock(
   if (!SERVICE_CHAT_ID) throw new Error("SERVICE_CHAT_ID не задан в .env");
   if (!product.serviceMessageId) return;
 
-  await api.editMessageText(
-    SERVICE_CHAT_ID,
-    product.serviceMessageId,
-    `✏️ Редактирует: ${editorName}. Закончит — кнопки вернутся.`,
-    { reply_markup: { inline_keyboard: [] } } // явно убираем клавиатуру
-  );
+  await api
+    .editMessageText(
+      SERVICE_CHAT_ID,
+      product.serviceMessageId,
+      `✏️ Редактирует: ${editorName}. Закончит — кнопки вернутся.`,
+      { reply_markup: { inline_keyboard: [] } } // явно убираем клавиатуру
+    )
+    .catch((e) => {
+      if (isNotModifiedError(e)) return;
+      throw e;
+    });
 }
 
 /**
- * Обновляет текст сообщения с кнопками в служебном чате — после
- * редактирования товара (категория или цена меняют отображаемый текст).
- * Также возвращает обе исходные кнопки в нормальное состояние.
+ * Обновляет ПОДПИСЬ под первой фотографией альбома в служебном чате
+ * (та же информация, что и в канале — buildCaption).
+ *
+ * Вызывается при редактировании category/size/condition/price.
+ * Аналогично updateChannelCaption, только для служебного чата.
+ */
+export async function updateServiceCaption(
+  api: Api,
+  product: ProductForService
+): Promise<void> {
+  if (!SERVICE_CHAT_ID) throw new Error("SERVICE_CHAT_ID не задан в .env");
+  if (product.serviceMediaMessageIds.length === 0) return;
+
+  await api
+    .editMessageCaption(SERVICE_CHAT_ID, product.serviceMediaMessageIds[0], {
+      caption: buildCaption(product),
+    })
+    .catch((e) => {
+      if (isNotModifiedError(e)) return;
+      throw e;
+    });
+}
+
+/**
+ * Обновляет ТЕКСТ сообщения с кнопками в служебном чате (та строка
+ * «Товар №X · cat · price ₽» под альбомом). Также возвращает обе кнопки.
+ *
+ * Если текст и клавиатура уже актуальны (например, отредактировали размер,
+ * который в этом тексте не отображается) — Telegram вернёт 400
+ * "message is not modified". Это нормально, игнорируем.
  */
 export async function updateServiceMessage(
   api: Api,
@@ -110,12 +143,17 @@ export async function updateServiceMessage(
   if (!SERVICE_CHAT_ID) throw new Error("SERVICE_CHAT_ID не задан в .env");
   if (!product.serviceMessageId) return;
 
-  await api.editMessageText(
-    SERVICE_CHAT_ID,
-    product.serviceMessageId,
-    buildServiceControlText(product),
-    { reply_markup: buildServiceControlKeyboard(product.id) }
-  );
+  await api
+    .editMessageText(
+      SERVICE_CHAT_ID,
+      product.serviceMessageId,
+      buildServiceControlText(product),
+      { reply_markup: buildServiceControlKeyboard(product.id) }
+    )
+    .catch((e) => {
+      if (isNotModifiedError(e)) return;
+      throw e;
+    });
 }
 
 /**

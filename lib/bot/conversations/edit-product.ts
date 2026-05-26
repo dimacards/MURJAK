@@ -13,6 +13,7 @@ import {
   deleteServicePost,
   restoreServiceButtons,
   sendToServiceChat,
+  updateServiceCaption,
   updateServiceMessage,
 } from "../service-chat";
 
@@ -102,8 +103,15 @@ async function finishEdit(
   updated: ProductWithRelations,
   noteSuffix: string = ""
 ): Promise<void> {
+  // 1. Подпись альбома в канале.
   await updateChannelCaption(ctx.api, updated);
+  // 2. Подпись альбома в служебном чате (та же подпись).
+  await updateServiceCaption(ctx.api, updated);
+  // 3. Сообщение под альбомом в служебном чате — текст + восстановление кнопок.
+  //    Если только размер/состояние изменились, текст может совпасть с прошлым —
+  //    updateServiceMessage сам проглатывает «message is not modified».
   await updateServiceMessage(ctx.api, updated);
+
   await ctx.reply(`Готово. Товар №${updated.id} обновлён.${noteSuffix}`);
 }
 

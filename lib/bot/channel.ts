@@ -1,6 +1,7 @@
 import type { Api } from "grammy";
 import type { Category, Photo, Product } from "@prisma/client";
 import { prisma } from "../db";
+import { isNotModifiedError } from "./telegram-utils";
 
 const CHANNEL_ID = process.env.CHANNEL_ID;
 
@@ -78,9 +79,15 @@ export async function updateChannelCaption(
     return;
   }
 
-  await api.editMessageCaption(CHANNEL_ID, product.channelMessageIds[0], {
-    caption: buildCaption(product),
-  });
+  await api
+    .editMessageCaption(CHANNEL_ID, product.channelMessageIds[0], {
+      caption: buildCaption(product),
+    })
+    .catch((e) => {
+      // Если текст уже актуален — Telegram возвращает 400, это не ошибка для нас.
+      if (isNotModifiedError(e)) return;
+      throw e;
+    });
 }
 
 /**
