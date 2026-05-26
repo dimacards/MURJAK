@@ -4,7 +4,11 @@ import { prisma } from "../../db";
 import config from "../../config";
 import type { AppContext, AppConversation } from "../types";
 import { uploadTelegramPhotoToSupabase } from "../upload";
-import { publishToChannel } from "../channel";
+import {
+  buildCaptionFromParts,
+  CAPTION_PARSE_MODE,
+  publishToChannel,
+} from "../channel";
 import { sendToServiceChat } from "../service-chat";
 
 const SIZES: Size[] = ["XS", "S", "M", "L", "XL", "XXL"];
@@ -37,9 +41,14 @@ export async function addProductConversation(
   // ── Шаг 1: фото ───────────────────────────────────────────────────────────
   const photos: CollectedPhoto[] = [];
 
+  // Одно сообщение-индикатор: при первом фото создаём, на остальные —
+  // редактируем через editMessageText. Это избавляет от спама ответов
+  // когда пользователь шлёт альбом из нескольких фото за раз.
+  let promptMessageId: number | undefined = undefined;
+
   await ctx.reply(
     `Загрузи фото товара. От 1 до ${MAX_PHOTOS}. ` +
-      `После каждого фото нажми кнопку для продолжения. ` +
+      `После каждого фото счётчик будет обновляться. ` +
       `Чтобы прервать — нажми «Отмена» или напиши /cancel.`,
     {
       reply_markup: new InlineKeyboard().text("Отмена", "ap_cancel"),
@@ -88,18 +97,32 @@ export async function addProductConversation(
       const best = sizes[sizes.length - 1];
       photos.push({ fileId: best.file_id });
 
-      if (photos.length >= MAX_PHOTOS) {
-        await next.reply(`Лимит ${MAX_PHOTOS} фото достигнут. Двигаемся дальше.`);
-        break collectingPhotos;
+      const limitReached = photos.length >= MAX_PHOTOS;
+      const text = limitReached
+        ? `Лимит ${MAX_PHOTOS} фото достигнут. Двигаемся дальше.`
+        : `Фото ${photos.length}. Можно ещё или жми «Готово».`;
+      const kb = limitReached
+        ? undefined
+        : new InlineKeyboard()
+            .text(`Готово (${photos.length}/${MAX_PHOTOS})`, "ap_done")
+            .text("Отмена", "ap_cancel");
+
+      const chatId = next.chat?.id;
+      if (promptMessageId !== undefined && chatId !== undefined) {
+        // Обновляем существующее сообщение. Игнорим возможные rate-limit
+        // или «message is not modified» — это не критично.
+        await next.api
+          .editMessageText(chatId, promptMessageId, text, {
+            reply_markup: kb,
+          })
+          .catch(() => {});
+      } else {
+        // Первое фото — создаём prompt-сообщение, запоминаем id.
+        const sent = await next.reply(text, { reply_markup: kb });
+        promptMessageId = sent.message_id;
       }
 
-      const kb = new InlineKeyboard()
-        .text(`Готово (${photos.length}/${MAX_PHOTOS})`, "ap_done")
-        .text("Отмена", "ap_cancel");
-      await next.reply(
-        `Фото ${photos.length}. Можно ещё или жми «Готово».`,
-        { reply_markup: kb }
-      );
+      if (limitReached) break collectingPhotos;
       continue collectingPhotos;
     }
 
@@ -223,11 +246,13 @@ export async function addProductConversation(
     return;
   }
 
-  const caption =
-    `${category.name}\n` +
-    `Размер: ${size}\n` +
-    `Состояние: ${condition}/10\n` +
-    `Цена: ${price} ₽`;
+  // Превью использует ту же подпись, что будет в канале — единый формат.
+  const caption = buildCaptionFromParts({
+    categoryName: category.name,
+    size,
+    condition,
+    price,
+  });
 
   // Альбом фото с подписью на первом
   await ctx.replyWithMediaGroup(
@@ -235,6 +260,7 @@ export async function addProductConversation(
       type: "photo",
       media: p.fileId,
       caption: idx === 0 ? caption : undefined,
+      parse_mode: idx === 0 ? CAPTION_PARSE_MODE : undefined,
     }))
   );
 

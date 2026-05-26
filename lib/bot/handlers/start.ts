@@ -10,6 +10,7 @@ const OWNER_COMMANDS = [
   "/add_category — добавить категорию",
   "/remove_category — удалить категорию",
   "/list_categories — список категорий",
+  "/delete_product <id> — удалить товар полностью",
 ];
 
 const WORKER_COMMANDS = COMMON_COMMANDS;

@@ -1,6 +1,7 @@
 import type { Api } from "grammy";
 import type { Category, Photo, Product } from "@prisma/client";
 import { prisma } from "../db";
+import config from "../config";
 import { isNotModifiedError } from "./telegram-utils";
 
 const CHANNEL_ID = process.env.CHANNEL_ID;
@@ -11,21 +12,57 @@ const CHANNEL_ID = process.env.CHANNEL_ID;
  */
 export type ProductForChannel = Product & { category: Category };
 
+/** Все подписи отправляются с parse_mode HTML — используем это для жирного текста. */
+export const CAPTION_PARSE_MODE = "HTML" as const;
+
+/** Минимальный HTML-escape для безопасных подписей (категория из БД). */
+function escapeHtml(s: string): string {
+  return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
+
 /**
- * Формирует подпись поста товара.
- * Формат:
- *   {категория}
- *   Размер: {size}
- *   Состояние: {condition}/10
- *   Цена: {price} ₽
+ * Параметры для построения подписи. Используется и для уже сохранённых товаров
+ * (через buildCaption), и для превью в /add_product до сохранения в БД.
+ */
+type CaptionParts = {
+  categoryName: string;
+  size: string;
+  condition: number;
+  price: number;
+};
+
+export function buildCaptionFromParts(parts: CaptionParts): string {
+  return [
+    `<b>${escapeHtml(parts.categoryName)}</b>`,
+    "",
+    `Размер: ${parts.size}`,
+    `Состояние: ${parts.condition}/10`,
+    "",
+    `<b>${parts.price}</b>`,
+    "",
+    `Купить: @${escapeHtml(config.sellerUsername)}`,
+  ].join("\n");
+}
+
+/**
+ * Формирует HTML-подпись поста товара. Формат:
+ *
+ *   <b>Категория</b>
+ *
+ *   Размер: M
+ *   Состояние: 8/10
+ *
+ *   <b>7000</b>
+ *
+ *   Купить: @sellerUsername
  */
 export function buildCaption(product: ProductForChannel): string {
-  return [
-    product.category.name,
-    `Размер: ${product.size}`,
-    `Состояние: ${product.condition}/10`,
-    `Цена: ${product.price} ₽`,
-  ].join("\n");
+  return buildCaptionFromParts({
+    categoryName: product.category.name,
+    size: product.size,
+    condition: product.condition,
+    price: product.price,
+  });
 }
 
 /**
@@ -57,6 +94,7 @@ export async function publishToChannel(
       type: "photo",
       media: photo.telegramFileId ?? photo.publicUrl,
       caption: idx === 0 ? caption : undefined,
+      parse_mode: idx === 0 ? CAPTION_PARSE_MODE : undefined,
     }))
   );
 
@@ -82,6 +120,7 @@ export async function updateChannelCaption(
   await api
     .editMessageCaption(CHANNEL_ID, product.channelMessageIds[0], {
       caption: buildCaption(product),
+      parse_mode: CAPTION_PARSE_MODE,
     })
     .catch((e) => {
       // Если текст уже актуален — Telegram возвращает 400, это не ошибка для нас.
@@ -128,7 +167,7 @@ export async function editChannelMedia(
       .editMessageMedia(CHANNEL_ID, messageId, {
         type: "photo",
         media: photo.telegramFileId ?? photo.publicUrl,
-        ...(isFirst ? { caption } : {}),
+        ...(isFirst ? { caption, parse_mode: CAPTION_PARSE_MODE } : {}),
       })
       .catch((e) => {
         if (isNotModifiedError(e)) return;
@@ -169,9 +208,9 @@ export async function deleteChannelPost(
 /** Метка «продано», префикс к caption и тексту служебного сообщения. */
 export const SOLD_MARK = "❌ ПРОДАНО";
 
-/** Подпись для проданного товара: «❌ ПРОДАНО» + пустая строка + обычная подпись. */
+/** Подпись для проданного товара: «❌ ПРОДАНО» жирным + обычная подпись. */
 export function buildSoldCaption(product: ProductForChannel): string {
-  return `${SOLD_MARK}\n\n${buildCaption(product)}`;
+  return `<b>${SOLD_MARK}</b>\n\n${buildCaption(product)}`;
 }
 
 /**
@@ -188,6 +227,7 @@ export async function markChannelAsSold(
   await api
     .editMessageCaption(CHANNEL_ID, product.channelMessageIds[0], {
       caption: buildSoldCaption(product),
+      parse_mode: CAPTION_PARSE_MODE,
     })
     .catch((e) => {
       if (isNotModifiedError(e)) return;

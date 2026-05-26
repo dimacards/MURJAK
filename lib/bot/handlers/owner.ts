@@ -1,5 +1,8 @@
 import { InlineKeyboard } from "grammy";
 import { prisma } from "../../db";
+import { supabase, SUPABASE_BUCKET } from "../../supabase";
+import { deleteChannelPost } from "../channel";
+import { deleteServicePost } from "../service-chat";
 import type { AppContext, AppConversation } from "../types";
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -270,4 +273,87 @@ function pluralizeProducts(n: number): string {
   if (last === 1) return "товар";
   if (last >= 2 && last <= 4) return "товара";
   return "товаров";
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// /delete_product <id> — полное удаление товара (БД, Supabase, канал, чат).
+// ─────────────────────────────────────────────────────────────────────────────
+//
+// Используется в основном для уборки «осиротевших» товаров — тех, что были
+// созданы до Этапа 6 (когда добавился служебный чат) и не имеют
+// serviceMessageId, поэтому нет кнопки «❌ Нет в наличии».
+//
+// В отличие от SOLD-флоу (просто прячет с сайта, оставляет в канале),
+// эта команда удаляет товар БЕЗВОЗВРАТНО.
+export async function deleteProductCommand(ctx: AppContext): Promise<void> {
+  const arg = ctx.message?.text?.split(/\s+/)[1];
+  const id = Number(arg);
+  if (!arg || !Number.isInteger(id) || id < 1) {
+    await ctx.reply(
+      "Использование: /delete_product <id>\n" +
+        "Пример: /delete_product 7\n\n" +
+        "Узнать id товара можно через /api/products или Prisma Studio."
+    );
+    return;
+  }
+
+  const product = await prisma.product.findUnique({
+    where: { id },
+    include: { category: true, photos: true },
+  });
+  if (!product) {
+    await ctx.reply(`Товар №${id} не найден.`);
+    return;
+  }
+
+  const progress = await ctx.reply(
+    `Удаляю товар №${id} (${product.category.name}, ${product.price} ₽)...`
+  );
+  const chatId = progress.chat.id;
+  const progressId = progress.message_id;
+  const updateProgress = async (text: string) => {
+    await ctx.api.editMessageText(chatId, progressId, text).catch(() => {});
+  };
+
+  // 1. Сообщения в канале — best effort.
+  if (product.channelMessageIds.length > 0) {
+    await updateProgress(`Удаляю пост в канале...`);
+    try {
+      await deleteChannelPost(ctx.api, product);
+    } catch (e) {
+      console.warn("deleteChannelPost in /delete_product:", e);
+    }
+  }
+
+  // 2. Сообщения в служебном чате — best effort.
+  if (
+    product.serviceMessageId !== null ||
+    product.serviceMediaMessageIds.length > 0
+  ) {
+    await updateProgress(`Удаляю в служебном чате...`);
+    try {
+      await deleteServicePost(ctx.api, product);
+    } catch (e) {
+      console.warn("deleteServicePost in /delete_product:", e);
+    }
+  }
+
+  // 3. Файлы в Supabase Storage — best effort.
+  if (product.photos.length > 0) {
+    await updateProgress(`Удаляю фото из хранилища...`);
+    const paths = product.photos.map((p) => p.storagePath);
+    const { error } = await supabase.storage
+      .from(SUPABASE_BUCKET)
+      .remove(paths);
+    if (error) {
+      console.warn("supabase remove in /delete_product:", error);
+    }
+  }
+
+  // 4. БД — Photo каскадно удаляются по foreign key onDelete: Cascade.
+  await prisma.product.delete({ where: { id } });
+
+  await updateProgress(
+    `✅ Товар №${id} удалён полностью (БД, Supabase, канал, служебный чат).`
+  );
 }

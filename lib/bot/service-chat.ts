@@ -1,6 +1,6 @@
 import { InlineKeyboard, type Api } from "grammy";
 import type { Category, Photo, Product } from "@prisma/client";
-import { buildCaption, SOLD_MARK } from "./channel";
+import { buildCaption, CAPTION_PARSE_MODE, SOLD_MARK } from "./channel";
 import { prisma } from "../db";
 import { isNotModifiedError } from "./telegram-utils";
 
@@ -62,6 +62,7 @@ export async function sendToServiceChat(
       type: "photo",
       media: photo.telegramFileId ?? photo.publicUrl,
       caption: idx === 0 ? caption : undefined,
+      parse_mode: idx === 0 ? CAPTION_PARSE_MODE : undefined,
     }))
   );
 
@@ -121,6 +122,7 @@ export async function updateServiceCaption(
   await api
     .editMessageCaption(SERVICE_CHAT_ID, product.serviceMediaMessageIds[0], {
       caption: buildCaption(product),
+      parse_mode: CAPTION_PARSE_MODE,
     })
     .catch((e) => {
       if (isNotModifiedError(e)) return;
@@ -205,7 +207,7 @@ export async function editServiceMedia(
       .editMessageMedia(SERVICE_CHAT_ID, messageId, {
         type: "photo",
         media: photo.telegramFileId ?? photo.publicUrl,
-        ...(isFirst ? { caption } : {}),
+        ...(isFirst ? { caption, parse_mode: CAPTION_PARSE_MODE } : {}),
       })
       .catch((e) => {
         if (isNotModifiedError(e)) return;

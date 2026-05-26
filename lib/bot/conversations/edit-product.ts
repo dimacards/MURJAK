@@ -295,6 +295,8 @@ async function editPhotos(
   );
 
   const newPhotos: { fileId: string }[] = [];
+  // Одно сообщение-индикатор: первое фото создаёт его, остальные — редактируют.
+  let promptMessageId: number | undefined = undefined;
 
   collecting: while (true) {
     if (newPhotos.length >= MAX_PHOTOS) break;
@@ -331,18 +333,30 @@ async function editPhotos(
       const sizes = next.message.photo;
       const best = sizes[sizes.length - 1];
       newPhotos.push({ fileId: best.file_id });
-      if (newPhotos.length >= MAX_PHOTOS) {
-        await next.reply(`Лимит ${MAX_PHOTOS} фото. Двигаемся дальше.`);
-        break;
-      }
-      await next.reply(
-        `Фото ${newPhotos.length}. Можно ещё или жми «Готово».`,
-        {
-          reply_markup: new InlineKeyboard()
+
+      const limitReached = newPhotos.length >= MAX_PHOTOS;
+      const text = limitReached
+        ? `Лимит ${MAX_PHOTOS} фото. Двигаемся дальше.`
+        : `Фото ${newPhotos.length}. Можно ещё или жми «Готово».`;
+      const kb = limitReached
+        ? undefined
+        : new InlineKeyboard()
             .text(`Готово (${newPhotos.length}/${MAX_PHOTOS})`, "edp:done")
-            .text("Отмена", "edp:cancel"),
-        }
-      );
+            .text("Отмена", "edp:cancel");
+
+      const chatId = next.chat?.id;
+      if (promptMessageId !== undefined && chatId !== undefined) {
+        await next.api
+          .editMessageText(chatId, promptMessageId, text, {
+            reply_markup: kb,
+          })
+          .catch(() => {});
+      } else {
+        const sent = await next.reply(text, { reply_markup: kb });
+        promptMessageId = sent.message_id;
+      }
+
+      if (limitReached) break;
     }
   }
 

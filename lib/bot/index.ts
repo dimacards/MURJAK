@@ -17,6 +17,7 @@ import {
   listCategoriesCommand,
   onRemoveWorkerCallback,
   onRemoveCategoryCallback,
+  deleteProductCommand,
 } from "./handlers/owner";
 import { addProductConversation } from "./conversations/add-product";
 import {
@@ -75,6 +76,8 @@ bot.command("add_category", privateOnly, ownerOnly, async (ctx) => {
 });
 bot.command("remove_category", privateOnly, ownerOnly, removeCategoryCommand);
 bot.command("list_categories", privateOnly, ownerOnly, listCategoriesCommand);
+
+bot.command("delete_product", privateOnly, ownerOnly, deleteProductCommand);
 
 // 4. Callback-кнопки для inline-меню (тоже OWNER-only).
 bot.callbackQuery(
