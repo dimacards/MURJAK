@@ -3,7 +3,6 @@ import { conversations, createConversation } from "@grammyjs/conversations";
 import type { AppContext } from "./types";
 import { ownerOnly, privateOnly, whitelist } from "./middleware";
 import { startHandler } from "./handlers/start";
-import { stubHandler } from "./handlers/stubs";
 import {
   addWorkerConversation,
   addCategoryConversation,
@@ -14,6 +13,7 @@ import {
   onRemoveWorkerCallback,
   onRemoveCategoryCallback,
 } from "./handlers/owner";
+import { addProductConversation } from "./conversations/add-product";
 
 const token = process.env.BOT_TOKEN;
 if (!token) {
@@ -36,12 +36,15 @@ bot.use(conversations());
 // Регистрируем все conversation-функции по их именам.
 bot.use(createConversation(addWorkerConversation, "addWorkerConversation"));
 bot.use(createConversation(addCategoryConversation, "addCategoryConversation"));
+bot.use(createConversation(addProductConversation, "addProductConversation"));
 
 // 3. Команды (все требуют privateOnly — работают только в ЛС).
 bot.command("start", privateOnly, startHandler);
 
-// /add_product — заглушка до следующего этапа.
-bot.command("add_product", privateOnly, stubHandler);
+// /add_product — доступна WORKER и OWNER.
+bot.command("add_product", privateOnly, async (ctx) => {
+  await ctx.conversation.enter("addProductConversation");
+});
 
 // OWNER-only команды.
 bot.command("add_worker", privateOnly, ownerOnly, async (ctx) => {
