@@ -1,7 +1,12 @@
 import { Bot } from "grammy";
-import { conversations, createConversation } from "@grammyjs/conversations";
+import {
+  conversations,
+  createConversation,
+  type ConversationData,
+} from "@grammyjs/conversations";
 import type { AppContext } from "./types";
 import { ownerOnly, privateOnly, whitelist } from "./middleware";
+import { createPrismaConversationStorage } from "./storage";
 import { startHandler } from "./handlers/start";
 import {
   addWorkerConversation,
@@ -25,13 +30,14 @@ export const bot = new Bot<AppContext>(token);
 // 1. Whitelist: отсекаем чужих, кладём worker в ctx.worker.
 bot.use(whitelist);
 
-// 2. Conversations плагин (in-memory storage по умолчанию).
-//
-// ⚠️ На Vercel serverless состояние конversation теряется при cold-start
-// между двумя сообщениями пользователя. Для коротких диалогов (2 шага)
-// это срабатывает в большинстве случаев, но для /add_product (Этап 4)
-// надо будет подключить персистентный storage (например, через Prisma).
-bot.use(conversations());
+// 2. Conversations плагин с Prisma-storage (BotSession в БД).
+// In-memory не работает на Vercel: каждый webhook-хит — потенциально
+// свежий serverless процесс, in-memory Map не выживает между ними.
+bot.use(
+  conversations({
+    storage: createPrismaConversationStorage<ConversationData>(),
+  })
+);
 
 // Регистрируем все conversation-функции по их именам.
 bot.use(createConversation(addWorkerConversation, "addWorkerConversation"));

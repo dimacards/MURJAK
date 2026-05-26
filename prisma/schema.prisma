@@ -69,6 +69,15 @@ model Product {
   photos    Photo[]
 }
 
+model BotSession {
+  // Хранит состояние пошаговых диалогов @grammyjs/conversations между
+  // webhook-вызовами (in-memory не работает в serverless: каждый хит = свежий процесс).
+  // key — ctx.chatId (string), value — JSON-сериализованный VersionedState<ConversationData>.
+  key       String   @id
+  value     String
+  updatedAt DateTime @updatedAt
+}
+
 model Photo {
   id             Int      @id @default(autoincrement())
   productId      Int
