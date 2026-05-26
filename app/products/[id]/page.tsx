@@ -82,9 +82,16 @@ export default async function ProductPage({
       </p>
 
       {(() => {
-        // Подготавливаем deep link на Telegram-чат продавца с
-        // pre-filled сообщением. Telegram распознаёт ?text= и кладёт
-        // содержимое в поле ввода чата (на мобильных и в Web).
+        // Deep link на Telegram-чат продавца с pre-filled сообщением.
+        // Telegram распознаёт ?text= и кладёт содержимое в поле ввода чата.
+        //
+        // НЕ используем target="_blank" — на iOS Safari это вызывает баг:
+        // новая вкладка открывается на t.me/, который через Universal Links
+        // открывает Telegram-приложение. При возврате в Safari та же вкладка
+        // снова пытается передать управление приложению — получается петля
+        // «This page couldn't load». Без _blank iOS открывает Telegram прямо
+        // из текущей вкладки, после возврата кнопка «назад» возвращает на
+        // страницу товара.
         const message =
           `Здравствуйте! Интересует товар №${product.id} ` +
           `(${product.category}, размер ${product.size}, ` +
@@ -95,8 +102,7 @@ export default async function ProductPage({
           <p style={{ marginTop: 16 }}>
             <a
               href={href}
-              target="_blank"
-              rel="noopener noreferrer"
+              rel="noopener"
               style={{
                 display: "inline-block",
                 padding: "8px 16px",
