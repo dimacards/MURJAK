@@ -4,6 +4,7 @@ import { prisma } from "../../db";
 import type { AppContext, AppConversation } from "../types";
 import { uploadTelegramPhotoToSupabase } from "../upload";
 import { publishToChannel } from "../channel";
+import { sendToServiceChat } from "../service-chat";
 
 const SIZES: Size[] = ["XS", "S", "M", "L", "XL", "XXL"];
 const MAX_PHOTOS = 10;
@@ -348,8 +349,8 @@ export async function addProductConversation(
     return;
   }
 
-  // Сохраняем message_id-ы в БД — пригодятся для последующих editCaption /
-  // delete / SOLD-операций (Этапы 7–8).
+  // Сохраняем message_id-ы канала в БД — пригодятся для последующих
+  // editCaption / delete / SOLD-операций (Этапы 7–8).
   await conversation.external(() =>
     prisma.product.update({
       where: { id: product.id },
@@ -357,7 +358,33 @@ export async function addProductConversation(
     })
   );
 
+  // ── Шаг 9: копия в служебный чат ──────────────────────────────────────────
+  let serviceIds: { mediaMessageIds: number[]; controlMessageId: number };
+  try {
+    serviceIds = await sendToServiceChat(ctx.api, product, product.photos);
+  } catch (e) {
+    console.error("sendToServiceChat failed:", e);
+    await ctx.reply(
+      `Товар опубликован в канале, но не удалось отправить копию в служебный чат:\n` +
+        `${e instanceof Error ? e.message : String(e)}\n\n` +
+        `Управление через кнопки для этого товара будет недоступно. ` +
+        `Проверь, что бот добавлен в служебный чат и имеет право писать.`
+    );
+    return;
+  }
+
+  await conversation.external(() =>
+    prisma.product.update({
+      where: { id: product.id },
+      data: {
+        serviceMediaMessageIds: serviceIds.mediaMessageIds,
+        serviceMessageId: serviceIds.controlMessageId,
+      },
+    })
+  );
+
   await ctx.reply(
-    "✅ Товар опубликован в канале. (Отправка в служебный чат — на следующем этапе)"
+    "✅ Товар опубликован в канале и в служебном чате. " +
+      "Управляй кнопками в служебном чате."
   );
 }

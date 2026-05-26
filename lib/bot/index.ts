@@ -78,3 +78,19 @@ bot.callbackQuery(
   ownerOnly,
   onRemoveCategoryCallback
 );
+
+// 5. Кнопки служебного чата (edit:/sold:) — пока заглушки, доступны любому
+// whitelisted работнику. Реальная логика на Этапах 7 (edit) и 8 (sold).
+bot.callbackQuery(/^edit:(\d+)$/, async (ctx) => {
+  await ctx.answerCallbackQuery({
+    text: "Редактирование товара — на следующем этапе.",
+    show_alert: true,
+  });
+});
+
+bot.callbackQuery(/^sold:(\d+)$/, async (ctx) => {
+  await ctx.answerCallbackQuery({
+    text: "Пометка «Нет в наличии» — на следующем этапе.",
+    show_alert: true,
+  });
+});
