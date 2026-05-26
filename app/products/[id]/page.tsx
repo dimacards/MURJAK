@@ -81,10 +81,39 @@ export default async function ProductPage({
         </b>
       </p>
 
-      <p style={{ marginTop: 16 }}>
-        <button type="button" disabled title="Покупка — на следующем этапе">
-          Купить
-        </button>
+      {(() => {
+        // Подготавливаем deep link на Telegram-чат продавца с
+        // pre-filled сообщением. Telegram распознаёт ?text= и кладёт
+        // содержимое в поле ввода чата (на мобильных и в Web).
+        const message =
+          `Здравствуйте! Интересует товар №${product.id} ` +
+          `(${product.category}, размер ${product.size}, ` +
+          `${product.price} ${config.currency})`;
+        const href = `https://t.me/${config.sellerUsername}?text=${encodeURIComponent(message)}`;
+
+        return (
+          <p style={{ marginTop: 16 }}>
+            <a
+              href={href}
+              target="_blank"
+              rel="noopener noreferrer"
+              style={{
+                display: "inline-block",
+                padding: "8px 16px",
+                background: "#229ED9",
+                color: "white",
+                textDecoration: "none",
+                borderRadius: 4,
+              }}
+            >
+              ✈️ Купить в Telegram
+            </a>
+          </p>
+        );
+      })()}
+
+      <p style={{ marginTop: 8, color: "#666", fontSize: 14 }}>
+        При нажатии вы перейдёте в Telegram для оформления покупки.
       </p>
     </main>
   );
