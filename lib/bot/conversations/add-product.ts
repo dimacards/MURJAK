@@ -5,7 +5,7 @@ import config from "../../config";
 import type { AppContext, AppConversation } from "../types";
 import { uploadTelegramPhotoToSupabase } from "../upload";
 import {
-  buildCaptionFromParts,
+  buildChannelCaptionFromParts,
   CAPTION_PARSE_MODE,
   publishToChannel,
 } from "../channel";
@@ -130,39 +130,117 @@ export async function addProductConversation(
   }
 
   // ── Шаг 2: категория ──────────────────────────────────────────────────────
-  const categories = await conversation.external(() =>
+  // Кнопка «➕ Новая категория» позволяет создать категорию прямо здесь, не
+  // выходя из диалога. После создания она автоматически выбирается для товара.
+  let categories = await conversation.external(() =>
     prisma.category.findMany({ orderBy: { name: "asc" } })
   );
 
-  if (categories.length === 0) {
-    await ctx.reply(
-      "У магазина ещё не настроены категории. Попроси владельца добавить через /add_category."
-    );
-    return;
+  async function showCategoryMenu(): Promise<void> {
+    const catKb = new InlineKeyboard();
+    for (const c of categories) catKb.text(c.name, `ap_cat:${c.id}`).row();
+    catKb.text("➕ Новая категория", "ap_cat:new").row();
+    catKb.text("Отмена", "ap_cancel");
+
+    if (categories.length === 0) {
+      await ctx.reply(
+        "Категорий пока нет. Создай первую — жми «➕ Новая категория».",
+        { reply_markup: catKb }
+      );
+    } else {
+      await ctx.reply("Выбери категорию:", { reply_markup: catKb });
+    }
   }
 
-  const catKb = new InlineKeyboard();
-  for (const c of categories) catKb.text(c.name, `ap_cat:${c.id}`).row();
-  catKb.text("Отмена", "ap_cancel");
-  await ctx.reply("Выбери категорию:", { reply_markup: catKb });
+  await showCategoryMenu();
 
   let categoryId: number;
-  while (true) {
+  categoryLoop: while (true) {
     const next = await conversation.waitForCallbackQuery(
-      /^ap_(cat:\d+|cancel)$/
+      /^ap_(cat:(?:\d+|new)|cancel)$/
     );
     const data = next.callbackQuery.data;
+
     if (data === "ap_cancel") {
       await next.answerCallbackQuery();
       await ctx.reply("Отменено.");
       return;
     }
+
+    if (data === "ap_cat:new") {
+      await next.answerCallbackQuery();
+      // Подшаг: ввести название новой категории.
+      await ctx.reply("Введи название новой категории (или /cancel):");
+      while (true) {
+        const nameMsg = await conversation.waitFor("message:text");
+        const name = nameMsg.message.text.trim();
+        if (name === "/cancel") {
+          await nameMsg.reply("Отменено.");
+          return;
+        }
+        if (!name) {
+          await nameMsg.reply("Пустое название. Введи ещё раз (или /cancel):");
+          continue;
+        }
+        const existing = await conversation.external(() =>
+          prisma.category.findUnique({ where: { name } })
+        );
+        if (existing) {
+          await nameMsg.reply(
+            `Категория «${name}» уже есть. Возвращаю меню — выбери её или придумай другое имя.`
+          );
+          categories = await conversation.external(() =>
+            prisma.category.findMany({ orderBy: { name: "asc" } })
+          );
+          await showCategoryMenu();
+          continue categoryLoop;
+        }
+        const created = await conversation.external(() =>
+          prisma.category.create({ data: { name } })
+        );
+        categories = await conversation.external(() =>
+          prisma.category.findMany({ orderBy: { name: "asc" } })
+        );
+        categoryId = created.id;
+        await nameMsg.reply(
+          `Категория «${created.name}» создана и выбрана для товара.`
+        );
+        break categoryLoop;
+      }
+    }
+
     const m = data?.match(/^ap_cat:(\d+)$/);
     if (m) {
       categoryId = Number(m[1]);
       await next.answerCallbackQuery();
       break;
     }
+  }
+
+  // ── Шаг 2.5: описание (короткое название товара) ─────────────────────────
+  await ctx.reply(
+    "Введи короткое название товара (например: «Cardigan Jenasis»).\n" +
+      "Это будет жирным заголовком поста в канале.\n" +
+      "Пропустить и оставить только категорию — отправь точку «.»"
+  );
+  let description: string | null = null;
+  while (true) {
+    const next = await conversation.waitFor("message:text");
+    const text = next.message.text.trim();
+    if (text === "/cancel") {
+      await next.reply("Отменено.");
+      return;
+    }
+    if (text === ".") {
+      description = null;
+      break;
+    }
+    if (text.length > 200) {
+      await next.reply("Слишком длинно (макс. 200 символов). Сократи или /cancel:");
+      continue;
+    }
+    description = text;
+    break;
   }
 
   // ── Шаг 3: размер ─────────────────────────────────────────────────────────
@@ -247,7 +325,9 @@ export async function addProductConversation(
   }
 
   // Превью использует ту же подпись, что будет в канале — единый формат.
-  const caption = buildCaptionFromParts({
+  const previewTitle = description?.trim() || category.name;
+  const caption = buildChannelCaptionFromParts({
+    title: previewTitle,
     categoryName: category.name,
     size,
     condition,
@@ -337,6 +417,7 @@ export async function addProductConversation(
     prisma.product.create({
       data: {
         categoryId,
+        description,
         size,
         condition,
         price,

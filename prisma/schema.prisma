@@ -53,6 +53,7 @@ model Category {
 model Product {
   id                Int           @id @default(autoincrement())
   categoryId        Int
+  description       String?       // короткое название товара («Cardigan Jenasis»). Отображается жирным в постах вместо/над категорией. Опциональное для backward compat со старыми товарами.
   size              Size
   condition         Int           // 1..10
   price             Int           // рубли

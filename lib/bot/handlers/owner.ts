@@ -286,28 +286,64 @@ function pluralizeProducts(n: number): string {
 // В отличие от SOLD-флоу (просто прячет с сайта, оставляет в канале),
 // эта команда удаляет товар БЕЗВОЗВРАТНО.
 export async function deleteProductCommand(ctx: AppContext): Promise<void> {
-  const arg = ctx.message?.text?.split(/\s+/)[1];
-  const id = Number(arg);
-  if (!arg || !Number.isInteger(id) || id < 1) {
+  // Принимает либо число (id), либо текст (description — точное совпадение).
+  // Примеры:
+  //   /delete_product 7
+  //   /delete_product Cardigan Jenasis
+  const raw = ctx.message?.text?.replace(/^\/delete_product(@\w+)?\s*/, "") ?? "";
+  const arg = raw.trim();
+  if (!arg) {
     await ctx.reply(
-      "Использование: /delete_product <id>\n" +
-        "Пример: /delete_product 7\n\n" +
-        "Узнать id товара можно через /api/products или Prisma Studio."
+      "Использование:\n" +
+        "  /delete_product <id>   — удалить по номеру (напр. /delete_product 7)\n" +
+        "  /delete_product <название>   — удалить по точному названию\n" +
+        "                                 (напр. /delete_product Cardigan Jenasis)"
     );
     return;
   }
 
-  const product = await prisma.product.findUnique({
-    where: { id },
-    include: { category: true, photos: true },
-  });
-  if (!product) {
-    await ctx.reply(`Товар №${id} не найден.`);
-    return;
+  // Сначала пробуем как id (целое число)
+  const asId = Number(arg);
+  const looksLikeId = /^\d+$/.test(arg) && Number.isInteger(asId) && asId > 0;
+
+  let product = null;
+  if (looksLikeId) {
+    product = await prisma.product.findUnique({
+      where: { id: asId },
+      include: { category: true, photos: true },
+    });
+    if (!product) {
+      await ctx.reply(`Товар №${asId} не найден.`);
+      return;
+    }
+  } else {
+    // Поиск по description (точное совпадение)
+    const matches = await prisma.product.findMany({
+      where: { description: arg },
+      include: { category: true, photos: true },
+    });
+    if (matches.length === 0) {
+      await ctx.reply(
+        `Товар с названием «${arg}» не найден.\n` +
+          `Можно попробовать удалить по id: /delete_product <number>.`
+      );
+      return;
+    }
+    if (matches.length > 1) {
+      const list = matches
+        .map((p) => `  • №${p.id} (${p.category.name}, ${p.price} ₽)`)
+        .join("\n");
+      await ctx.reply(
+        `Найдено несколько товаров «${arg}»:\n${list}\n\n` +
+          `Уточни — удали по id: /delete_product <number>.`
+      );
+      return;
+    }
+    product = matches[0];
   }
 
   const progress = await ctx.reply(
-    `Удаляю товар №${id} (${product.category.name}, ${product.price} ₽)...`
+    `Удаляю товар №${product.id} (${product.category.name}, ${product.price} ₽)...`
   );
   const chatId = progress.chat.id;
   const progressId = progress.message_id;
@@ -351,9 +387,9 @@ export async function deleteProductCommand(ctx: AppContext): Promise<void> {
   }
 
   // 4. БД — Photo каскадно удаляются по foreign key onDelete: Cascade.
-  await prisma.product.delete({ where: { id } });
+  await prisma.product.delete({ where: { id: product.id } });
 
   await updateProgress(
-    `✅ Товар №${id} удалён полностью (БД, Supabase, канал, служебный чат).`
+    `✅ Товар №${product.id} удалён полностью (БД, Supabase, канал, служебный чат).`
   );
 }

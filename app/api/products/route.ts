@@ -60,6 +60,10 @@ export async function GET(req: Request) {
     const priceMin = parseInt(searchParams.get("priceMin"), 0);
     const priceMax = parseInt(searchParams.get("priceMax"), 0);
 
+    // Поиск по описанию (case-insensitive подстрока).
+    const searchRaw = searchParams.get("search")?.trim();
+    const search = searchRaw && searchRaw.length > 0 ? searchRaw : undefined;
+
     // ── Сортировка ─────────────────────────────────────────────────────────
     const sortRaw = searchParams.get("sort");
     const sort: ProductSort = (PRODUCT_SORT as readonly string[]).includes(
@@ -103,6 +107,9 @@ export async function GET(req: Request) {
           ...(priceMax !== undefined && { lte: priceMax }),
         },
       }),
+      ...(search !== undefined && {
+        description: { contains: search, mode: "insensitive" as const },
+      }),
     };
 
     // ── Запрос (параллельно: items + count) ────────────────────────────────
@@ -124,6 +131,7 @@ export async function GET(req: Request) {
       items: products.map((p) => ({
         id: p.id,
         category: p.category.name,
+        description: p.description,
         size: p.size,
         condition: p.condition,
         price: p.price,

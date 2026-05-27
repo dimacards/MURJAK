@@ -1,6 +1,6 @@
 import { InlineKeyboard, type Api } from "grammy";
 import type { Category, Photo, Product } from "@prisma/client";
-import { buildCaption, CAPTION_PARSE_MODE, SOLD_MARK } from "./channel";
+import { buildServiceCaption, CAPTION_PARSE_MODE, SOLD_MARK } from "./channel";
 import { prisma } from "../db";
 import { isNotModifiedError } from "./telegram-utils";
 
@@ -18,7 +18,8 @@ export type ProductForService = Product & { category: Category };
  * кнопки «Редактировать» / «Нет в наличии».
  */
 export function buildServiceControlText(product: ProductForService): string {
-  return `Товар №${product.id} · ${product.category.name} · ${product.price} ₽`;
+  const title = product.description?.trim() || product.category.name;
+  return `Товар №${product.id} · ${title} · ${product.price} ₽`;
 }
 
 /**
@@ -52,7 +53,7 @@ export async function sendToServiceChat(
     throw new Error("Нет фото для отправки в служебный чат");
   }
 
-  const caption = buildCaption(product);
+  const caption = buildServiceCaption(product);
   const sorted = [...photos].sort((a, b) => a.order - b.order);
 
   // 1. Альбом
@@ -121,7 +122,7 @@ export async function updateServiceCaption(
 
   await api
     .editMessageCaption(SERVICE_CHAT_ID, product.serviceMediaMessageIds[0], {
-      caption: buildCaption(product),
+      caption: buildServiceCaption(product),
       parse_mode: CAPTION_PARSE_MODE,
     })
     .catch((e) => {
@@ -196,7 +197,7 @@ export async function editServiceMedia(
   }
 
   const sorted = [...photos].sort((a, b) => a.order - b.order);
-  const caption = buildCaption(product);
+  const caption = buildServiceCaption(product);
 
   for (let i = 0; i < sorted.length; i++) {
     const photo = sorted[i];

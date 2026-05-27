@@ -26,6 +26,7 @@ import {
 } from "./conversations/edit-product";
 import { onEditClick, onEditCancel } from "./handlers/edit";
 import { onSoldClick, onRestockClick } from "./handlers/sold";
+import { prisma } from "../db";
 
 const token = process.env.BOT_TOKEN;
 if (!token) {
@@ -36,6 +37,29 @@ export const bot = new Bot<AppContext>(token);
 
 // 1. Whitelist: отсекаем чужих, кладём worker в ctx.worker.
 bot.use(whitelist);
+
+// 1.5. Новая команда обрывает активный conversation.
+//
+// Без этого hook'а: если юзер в середине /add_product отправит /list_workers,
+// текст «/list_workers» уходит в conversation как ввод (например, в шаг
+// description) — и команда не срабатывает.
+//
+// Лечение: ПЕРЕД conversations() middleware проверяем — если сообщение
+// начинается с команды, удаляем активную сессию из BotSession для этого чата.
+// Тогда conversations() не найдёт активный диалог и пропустит update дальше,
+// где он попадёт на command-handler.
+bot.use(async (ctx, next) => {
+  const isCommand =
+    ctx.message?.entities?.some(
+      (e) => e.type === "bot_command" && e.offset === 0
+    ) ?? false;
+  if (isCommand && ctx.chat?.id !== undefined) {
+    await prisma.botSession
+      .deleteMany({ where: { key: String(ctx.chat.id) } })
+      .catch(() => {});
+  }
+  await next();
+});
 
 // 2. Conversations плагин с Prisma-storage (BotSession в БД).
 // In-memory не работает на Vercel: каждый webhook-хит — потенциально
@@ -101,7 +125,7 @@ bot.callbackQuery(/^edit:(\d+)$/, onEditClick);
 bot.callbackQuery(/^editcancel:(\d+)$/, onEditCancel);
 
 bot.callbackQuery(
-  /^editfield:(\d+):(photos|category|size|condition|price)$/,
+  /^editfield:(\d+):(photos|category|size|condition|price|description)$/,
   async (ctx) => {
     const match = ctx.match as RegExpMatchArray | undefined;
     const productId = Number(match?.[1]);

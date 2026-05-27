@@ -38,6 +38,7 @@ export async function GET(
     const body: ProductDto = {
       id: product.id,
       category: product.category.name,
+      description: product.description,
       size: product.size,
       condition: product.condition,
       price: product.price,

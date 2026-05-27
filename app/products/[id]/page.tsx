@@ -59,7 +59,12 @@ export default async function ProductPage({
         <Link href="/">← к списку</Link>
       </p>
 
-      <h1>{product.category}</h1>
+      <h1>{product.description || product.category}</h1>
+      {product.description && (
+        <p style={{ color: "#666", marginTop: -8 }}>
+          Категория: {product.category}
+        </p>
+      )}
 
       <div style={{ display: "grid", gap: 8, marginBottom: 16 }}>
         {product.photos.map((url, i) => (
@@ -92,9 +97,10 @@ export default async function ProductPage({
         // «This page couldn't load». Без _blank iOS открывает Telegram прямо
         // из текущей вкладки, после возврата кнопка «назад» возвращает на
         // страницу товара.
+        const title = product.description || product.category;
         const message =
           `Здравствуйте! Интересует товар №${product.id} ` +
-          `(${product.category}, размер ${product.size}, ` +
+          `«${title}» (размер ${product.size}, ` +
           `${product.price} ${config.currency})`;
         const href = `https://t.me/${config.sellerUsername}?text=${encodeURIComponent(message)}`;
 

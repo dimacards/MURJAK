@@ -13,6 +13,7 @@ import type {
 const SIZES = ["XS", "S", "M", "L", "XL", "XXL"] as const;
 
 type Filters = {
+  search: string;   // подстрока в описании
   category: string; // "" = любая
   size: string;     // "" = любой
   conditionMin: string;
@@ -23,6 +24,7 @@ type Filters = {
 };
 
 const EMPTY_FILTERS: Filters = {
+  search: "",
   category: "",
   size: "",
   conditionMin: "",
@@ -35,6 +37,7 @@ const EMPTY_FILTERS: Filters = {
 /** Собирает query string из applied-фильтров и страницы. */
 function buildQuery(applied: Filters, page: number): string {
   const params = new URLSearchParams();
+  if (applied.search) params.set("search", applied.search);
   if (applied.category) params.set("category", applied.category);
   if (applied.size) params.set("size", applied.size);
   if (applied.conditionMin) params.set("conditionMin", applied.conditionMin);
@@ -114,6 +117,15 @@ export default function Home() {
           marginBottom: 24,
         }}
       >
+        <label htmlFor="f-search">Поиск</label>
+        <input
+          id="f-search"
+          type="search"
+          placeholder="по названию товара..."
+          value={draft.search}
+          onChange={(e) => setDraft({ ...draft, search: e.target.value })}
+        />
+
         <label htmlFor="f-category">Категория</label>
         <select
           id="f-category"
@@ -273,7 +285,10 @@ export default function Home() {
                       }}
                     />
                   )}
-                  <div>{p.category}</div>
+                  {p.description && (
+                    <div style={{ fontWeight: 600 }}>{p.description}</div>
+                  )}
+                  <div style={{ color: "#666", fontSize: 13 }}>{p.category}</div>
                   <div>Размер: {p.size}</div>
                   <div>Состояние: {p.condition}/10</div>
                   <div>

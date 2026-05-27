@@ -21,7 +21,13 @@ import {
 
 const MAX_PHOTOS = 10;
 
-export type EditField = "photos" | "category" | "size" | "condition" | "price";
+export type EditField =
+  | "photos"
+  | "category"
+  | "size"
+  | "condition"
+  | "price"
+  | "description";
 
 type ProductWithRelations = Product & {
   category: Category;
@@ -61,6 +67,8 @@ export async function editProductConversation(
     else if (field === "condition")
       await editCondition(conversation, ctx, product);
     else if (field === "price") await editPrice(conversation, ctx, product);
+    else if (field === "description")
+      await editDescription(conversation, ctx, product);
     else if (field === "photos") await editPhotos(conversation, ctx, product);
   } catch (e) {
     console.error("editProductConversation failed:", e);
@@ -273,6 +281,57 @@ async function editPrice(
       prisma.product.update({
         where: { id: product.id },
         data: { price: n },
+        include: { category: true, photos: true },
+      })
+    );
+    await finishEdit(ctx, updated);
+    return;
+  }
+}
+
+// ─── Описание (title) ────────────────────────────────────────────────────────
+
+async function editDescription(
+  conversation: AppConversation,
+  ctx: AppContext,
+  product: ProductWithRelations
+): Promise<void> {
+  const current = product.description ? `«${product.description}»` : "не задано";
+  await ctx.reply(
+    `Текущее название: ${current}.\n` +
+      `Введи новое название (или «.» чтобы стереть, /cancel для отмены):`
+  );
+  while (true) {
+    const next = await conversation.waitFor("message:text");
+    const text = next.message.text.trim();
+    if (text === "/cancel") {
+      await cancelAndRestore(conversation, ctx, product.id);
+      return;
+    }
+    if (text === ".") {
+      // стираем
+      const updated = await conversation.external(() =>
+        prisma.product.update({
+          where: { id: product.id },
+          data: { description: null },
+          include: { category: true, photos: true },
+        })
+      );
+      await finishEdit(ctx, updated);
+      return;
+    }
+    if (!text) {
+      await next.reply("Пустое название. Введи ещё раз, или «.» чтобы стереть, или /cancel:");
+      continue;
+    }
+    if (text.length > 200) {
+      await next.reply("Слишком длинно (макс. 200 символов). Сократи или /cancel:");
+      continue;
+    }
+    const updated = await conversation.external(() =>
+      prisma.product.update({
+        where: { id: product.id },
+        data: { description: text },
         include: { category: true, photos: true },
       })
     );

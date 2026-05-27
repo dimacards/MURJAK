@@ -14,13 +14,15 @@ const SERVICE_CHAT_ID = process.env.SERVICE_CHAT_ID;
  */
 function buildEditFieldMenu(productId: number): InlineKeyboard {
   return new InlineKeyboard()
+    .text("📝 Название", `editfield:${productId}:description`)
     .text("📷 Фото", `editfield:${productId}:photos`)
+    .row()
     .text("🏷 Категория", `editfield:${productId}:category`)
-    .row()
     .text("📏 Размер", `editfield:${productId}:size`)
-    .text("⭐ Состояние", `editfield:${productId}:condition`)
     .row()
+    .text("⭐ Состояние", `editfield:${productId}:condition`)
     .text("💰 Цена", `editfield:${productId}:price`)
+    .row()
     .text("↩️ Отмена", `editcancel:${productId}`);
 }
 

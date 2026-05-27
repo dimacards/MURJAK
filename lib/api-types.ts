@@ -8,6 +8,7 @@ import type { Size } from "@prisma/client";
 export type ProductDto = {
   id: number;
   category: string;
+  description: string | null;
   size: Size;
   condition: number;
   price: number;
