@@ -25,7 +25,7 @@ const OWNER_COMMANDS = [
   { command: "add_category", description: "Добавить категорию" },
   { command: "remove_category", description: "Удалить категорию" },
   { command: "list_categories", description: "Список категорий" },
-  { command: "delete_product", description: "Удалить товар (/delete_product <id>)" },
+  { command: "delete_product", description: "Удалить товар по id или названию" },
 ];
 
 async function main() {
