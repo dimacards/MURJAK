@@ -1,9 +1,13 @@
-import { InlineKeyboard } from "grammy";
+import { InlineKeyboard, Keyboard } from "grammy";
 import { prisma } from "../../db";
 import { supabase, SUPABASE_BUCKET } from "../../supabase";
 import { deleteChannelPost } from "../channel";
 import { deleteServicePost } from "../service-chat";
 import type { AppContext, AppConversation } from "../types";
+
+// request_id для кнопки RequestUsers в /add_worker — нужен для матчинга
+// shared-users-ответа с нашим запросом.
+const ADD_WORKER_REQUEST_ID = 1;
 
 // ─────────────────────────────────────────────────────────────────────────────
 // /add_worker — диалог: telegram_id → имя → создание Worker(WORKER).
@@ -13,56 +17,147 @@ export async function addWorkerConversation(
   conversation: AppConversation,
   ctx: AppContext
 ): Promise<void> {
+  // Reply-keyboard с системной кнопкой «Поделиться контактом» (RequestUsers).
+  // При нажатии Telegram открывает picker контактов → выбранный user шарится
+  // в виде message.users_shared с user_id и first_name (request_name: true).
+  // Альтернативно работник вводит telegram_id числом — fallback для тех, кому
+  // RequestUsers не подходит (например, добавляемый ещё не контакт).
+  const shareKb = new Keyboard()
+    .requestUsers("📱 Поделиться контактом", ADD_WORKER_REQUEST_ID, {
+      user_is_bot: false,
+      request_name: true,
+      max_quantity: 1,
+    })
+    .resized()
+    .oneTime();
+
   await ctx.reply(
-    "Введи telegram_id нового работника (числом).\n" +
-      "Подсказка: получить можно у @userinfobot. Чтобы отменить — /cancel."
+    "Кого добавить работником?\n\n" +
+      "• Нажми «📱 Поделиться контактом» и выбери его в списке контактов.\n" +
+      "• Или введи Telegram ID числом (получить можно у @userinfobot).\n" +
+      "• Чтобы отменить — /cancel.",
+    { reply_markup: shareKb }
   );
 
   let telegramId: bigint;
-  while (true) {
-    const next = await conversation.waitFor("message:text");
-    const text = next.message.text.trim();
+  // sharedName заполняется только если работник пришёл через RequestUsers —
+  // тогда пропускаем ручной ввод имени и сразу используем имя из Telegram.
+  let sharedName: string | undefined = undefined;
 
-    if (text === "/cancel") {
-      await next.reply("Отменено.");
-      return;
-    }
-    if (!/^\d+$/.test(text)) {
-      await next.reply("Это не число. Введи telegram_id ещё раз (или /cancel):");
-      continue;
-    }
+  pickWorker: while (true) {
+    const next = await conversation.wait();
 
-    telegramId = BigInt(text);
+    // ── Поделиться контактом ──────────────────────────────────────────────
+    if (next.message?.users_shared) {
+      const shared = next.message.users_shared;
+      if (shared.request_id !== ADD_WORKER_REQUEST_ID) {
+        await next.reply("Неожиданный share — попробуй ещё раз или /cancel.");
+        continue;
+      }
+      const u = shared.users[0];
+      if (!u) {
+        await next.reply("Никого не выбрал — попробуй ещё раз или /cancel.");
+        continue;
+      }
+      telegramId = BigInt(u.user_id);
+      const combinedName = [u.first_name, u.last_name]
+        .filter((x): x is string => !!x && x.trim().length > 0)
+        .join(" ")
+        .trim();
+      sharedName = combinedName.length > 0 ? combinedName : undefined;
 
-    const existing = await conversation.external(() =>
-      prisma.worker.findUnique({ where: { telegramId } })
-    );
-    if (existing) {
-      await next.reply(
-        `Этот telegram_id уже есть у работника «${existing.name}» (${existing.role}). Введи другой или /cancel:`
+      const existing = await conversation.external(() =>
+        prisma.worker.findUnique({ where: { telegramId } })
       );
-      continue;
+      if (existing) {
+        await next.reply(
+          `Этот пользователь уже работник: «${existing.name}» (роль ${existing.role}).`,
+          { reply_markup: { remove_keyboard: true } }
+        );
+        return;
+      }
+      break pickWorker;
     }
 
-    break;
+    // ── Текстовый fallback ────────────────────────────────────────────────
+    if (next.message?.text) {
+      const text = next.message.text.trim();
+      if (text === "/cancel") {
+        await next.reply("Отменено.", {
+          reply_markup: { remove_keyboard: true },
+        });
+        return;
+      }
+      if (!/^\d+$/.test(text)) {
+        await next.reply(
+          "Это не число и не контакт. Нажми кнопку «📱 Поделиться контактом» или введи Telegram ID числом (или /cancel):"
+        );
+        continue;
+      }
+      telegramId = BigInt(text);
+      const existing = await conversation.external(() =>
+        prisma.worker.findUnique({ where: { telegramId } })
+      );
+      if (existing) {
+        await next.reply(
+          `Этот telegram_id уже есть у работника «${existing.name}» (${existing.role}). Введи другой или /cancel:`
+        );
+        continue;
+      }
+      break pickWorker;
+    }
+
+    // что-то ещё (фото, стикер) — игнорим
   }
 
-  await ctx.reply("Теперь имя работника:");
-
+  // ── Имя ────────────────────────────────────────────────────────────────
   let name: string;
-  while (true) {
-    const next = await conversation.waitFor("message:text");
-    const t = next.message.text.trim();
-    if (t === "/cancel") {
-      await next.reply("Отменено.");
-      return;
+  if (sharedName) {
+    // Если получили имя из Telegram-профиля — подтверждаем; пользователь
+    // может либо принять (отправив «.»), либо ввести другое.
+    await ctx.reply(
+      `Имя из Telegram: «${sharedName}».\n` +
+        `Использовать как есть — отправь «.»\n` +
+        `Или введи другое имя (например, «${sharedName} (склад)»):`,
+      { reply_markup: { remove_keyboard: true } }
+    );
+    while (true) {
+      const next = await conversation.waitFor("message:text");
+      const t = next.message.text.trim();
+      if (t === "/cancel") {
+        await next.reply("Отменено.");
+        return;
+      }
+      if (t === ".") {
+        name = sharedName;
+        break;
+      }
+      if (!t) {
+        await next.reply("Пустое имя. Введи имя или «.» чтобы использовать «" + sharedName + "», или /cancel:");
+        continue;
+      }
+      name = t;
+      break;
     }
-    if (!t) {
-      await next.reply("Пустое имя. Введи ещё раз (или /cancel):");
-      continue;
+  } else {
+    // ID введён вручную или sharedName пустой — спрашиваем имя как раньше.
+    await ctx.reply("Теперь имя работника:", {
+      reply_markup: { remove_keyboard: true },
+    });
+    while (true) {
+      const next = await conversation.waitFor("message:text");
+      const t = next.message.text.trim();
+      if (t === "/cancel") {
+        await next.reply("Отменено.");
+        return;
+      }
+      if (!t) {
+        await next.reply("Пустое имя. Введи ещё раз (или /cancel):");
+        continue;
+      }
+      name = t;
+      break;
     }
-    name = t;
-    break;
   }
 
   await conversation.external(() =>
@@ -72,7 +167,8 @@ export async function addWorkerConversation(
   );
 
   await ctx.reply(
-    `Работник ${name} добавлен. Не забудь добавить его в служебный чат.`
+    `Работник ${name} (id ${telegramId}) добавлен. ` +
+      `Не забудь добавить его в служебный чат.`
   );
 }
 
