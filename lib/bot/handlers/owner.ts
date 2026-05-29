@@ -353,11 +353,12 @@ export async function categoriesCommand(ctx: AppContext): Promise<void> {
   await renderCategoriesList(ctx, false);
 }
 
-/** c_open:{id} — карточка категории с удалением/назад. */
-export async function onCategoryOpen(ctx: AppContext): Promise<void> {
-  const id = Number((ctx.match as RegExpMatchArray)?.[1]);
+/** Рендерит карточку категории (текст + кнопки управления) в текущем сообщении. */
+async function renderCategoryCard(
+  ctx: AppContext,
+  id: number
+): Promise<void> {
   const cat = await prisma.category.findUnique({ where: { id } });
-  await ctx.answerCallbackQuery();
   if (!cat) {
     await renderCategoriesList(ctx, true);
     return;
@@ -365,17 +366,110 @@ export async function onCategoryOpen(ctx: AppContext): Promise<void> {
   const productCount = await prisma.product.count({
     where: { categoryId: id },
   });
-  const kb = new InlineKeyboard();
-  kb.text("🗑 Удалить", `c_del:${cat.id}`);
-  kb.text("↩️ Назад", "c_back");
+
+  const typeLabel = cat.sizeType === "SHOE" ? "👟 обувь" : "👕 одежда";
+  const toggleLabel =
+    cat.sizeType === "SHOE" ? "👕 Сделать одеждой" : "👟 Сделать обувью";
+
+  const kb = new InlineKeyboard()
+    .text("✏️ Переименовать", `c_rename:${cat.id}`)
+    .row()
+    .text(toggleLabel, `c_ttype:${cat.id}`)
+    .row()
+    .text("🗑 Удалить", `c_del:${cat.id}`)
+    .text("↩️ Назад", "c_back");
 
   const note =
     productCount > 0
-      ? `\n\nВ категории ${productCount} ${pluralizeProducts(productCount)} — удалить нельзя, пока они есть.`
+      ? `\nТоваров: ${productCount} — удалить нельзя, пока они есть.`
       : "";
   await ctx
-    .editMessageText(`Категория «${cat.name}»${note}`, { reply_markup: kb })
+    .editMessageText(`Категория «${cat.name}»\nТип: ${typeLabel}${note}`, {
+      reply_markup: kb,
+    })
     .catch(() => {});
+}
+
+/** c_open:{id} — карточка категории. */
+export async function onCategoryOpen(ctx: AppContext): Promise<void> {
+  const id = Number((ctx.match as RegExpMatchArray)?.[1]);
+  await ctx.answerCallbackQuery();
+  await renderCategoryCard(ctx, id);
+}
+
+/** c_ttype:{id} — переключить тип размерной сетки (одежда ↔ обувь). */
+export async function onCategoryToggleType(ctx: AppContext): Promise<void> {
+  const id = Number((ctx.match as RegExpMatchArray)?.[1]);
+  const cat = await prisma.category.findUnique({ where: { id } });
+  if (!cat) {
+    await ctx.answerCallbackQuery({ text: "Категория удалена." });
+    await renderCategoriesList(ctx, true);
+    return;
+  }
+  const newType = cat.sizeType === "SHOE" ? "CLOTHING" : "SHOE";
+  await prisma.category.update({
+    where: { id },
+    data: { sizeType: newType },
+  });
+  await ctx.answerCallbackQuery({
+    text: newType === "SHOE" ? "Теперь обувь" : "Теперь одежда",
+  });
+  await renderCategoryCard(ctx, id);
+}
+
+/** c_rename:{id} — запустить диалог переименования категории. */
+export async function onCategoryRename(ctx: AppContext): Promise<void> {
+  const id = Number((ctx.match as RegExpMatchArray)?.[1]);
+  await ctx.answerCallbackQuery();
+  await ctx.conversation.enter("renameCategoryConversation", id);
+}
+
+/** Диалог переименования категории. */
+export async function renameCategoryConversation(
+  conversation: AppConversation,
+  ctx: AppContext,
+  categoryId: number
+): Promise<void> {
+  const cat = await conversation.external(() =>
+    prisma.category.findUnique({ where: { id: categoryId } })
+  );
+  if (!cat) {
+    await ctx.reply("Категория не найдена.");
+    return;
+  }
+  await ctx.reply(
+    `Текущее название: «${cat.name}».\nВведи новое (или /cancel):`
+  );
+  while (true) {
+    const next = await conversation.waitFor("message:text");
+    const name = next.message.text.trim();
+    if (name === "/cancel") {
+      await next.reply("Отменено.");
+      return;
+    }
+    if (!name) {
+      await next.reply("Пустое название. Введи ещё раз (или /cancel):");
+      continue;
+    }
+    const existing = await conversation.external(() =>
+      prisma.category.findUnique({ where: { name } })
+    );
+    if (existing && existing.id !== categoryId) {
+      await next.reply(
+        `Категория «${name}» уже есть. Введи другое название (или /cancel):`
+      );
+      continue;
+    }
+    await conversation.external(() =>
+      prisma.category.update({ where: { id: categoryId }, data: { name } })
+    );
+    await next.reply(
+      `Готово. Категория переименована в «${name}».\n` +
+        `Примечание: у уже опубликованных товаров без своего названия ` +
+        `подпись в канале обновится при их следующем редактировании.`
+    );
+    return;
+  }
 }
 
 /** c_del:{id} — удалить пустую категорию, вернуться к списку. */

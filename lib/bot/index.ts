@@ -21,6 +21,9 @@ import {
   onCategoryDelete,
   onCategoryBack,
   onCategoryAdd,
+  onCategoryToggleType,
+  onCategoryRename,
+  renameCategoryConversation,
 } from "./handlers/owner";
 import { addProductConversation } from "./conversations/add-product";
 import {
@@ -112,6 +115,9 @@ bot.use(
 // Регистрируем все conversation-функции по их именам.
 bot.use(createConversation(addWorkerConversation, "addWorkerConversation"));
 bot.use(createConversation(addCategoryConversation, "addCategoryConversation"));
+bot.use(
+  createConversation(renameCategoryConversation, "renameCategoryConversation")
+);
 bot.use(createConversation(addProductConversation, "addProductConversation"));
 bot.use(
   createConversation(editProductConversation, "editProductConversation")
@@ -144,6 +150,8 @@ bot.callbackQuery(/^w_back$/, ownerOnly, onWorkerBack);
 bot.callbackQuery(/^w_add$/, ownerOnly, onWorkerAdd);
 bot.callbackQuery(/^c_open:(\d+)$/, ownerOnly, onCategoryOpen);
 bot.callbackQuery(/^c_del:(\d+)$/, ownerOnly, onCategoryDelete);
+bot.callbackQuery(/^c_ttype:(\d+)$/, ownerOnly, onCategoryToggleType);
+bot.callbackQuery(/^c_rename:(\d+)$/, ownerOnly, onCategoryRename);
 bot.callbackQuery(/^c_back$/, ownerOnly, onCategoryBack);
 bot.callbackQuery(/^c_add$/, ownerOnly, onCategoryAdd);
 
