@@ -2,7 +2,8 @@ import type { AppContext } from "../types";
 
 const COMMON_COMMANDS = [
   "/add_product — добавить товар",
-  "/products — список товаров (редактировать, продать, удалить)",
+  "/products — список товаров (редактировать, продать, удалить).\n" +
+    "   Поиск: /products <название или категория>",
 ];
 
 const OWNER_COMMANDS = [

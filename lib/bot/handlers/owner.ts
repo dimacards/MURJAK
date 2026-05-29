@@ -111,37 +111,12 @@ export async function addWorkerConversation(
   }
 
   // ── Имя ────────────────────────────────────────────────────────────────
+  // Из контакта берём имя автоматически. Для ручного ID — спрашиваем имя.
   let name: string;
   if (sharedName) {
-    // Если получили имя из Telegram-профиля — подтверждаем; пользователь
-    // может либо принять (отправив «.»), либо ввести другое.
-    await ctx.reply(
-      `Имя из Telegram: «${sharedName}».\n` +
-        `Использовать как есть — отправь «.»\n` +
-        `Или введи другое имя (например, «${sharedName} (склад)»):`,
-      { reply_markup: { remove_keyboard: true } }
-    );
-    while (true) {
-      const next = await conversation.waitFor("message:text");
-      const t = next.message.text.trim();
-      if (t === "/cancel") {
-        await next.reply("Отменено.");
-        return;
-      }
-      if (t === ".") {
-        name = sharedName;
-        break;
-      }
-      if (!t) {
-        await next.reply("Пустое имя. Введи имя или «.» чтобы использовать «" + sharedName + "», или /cancel:");
-        continue;
-      }
-      name = t;
-      break;
-    }
+    name = sharedName;
   } else {
-    // ID введён вручную или sharedName пустой — спрашиваем имя как раньше.
-    await ctx.reply("Теперь имя работника:", {
+    await ctx.reply("Имя работника:", {
       reply_markup: { remove_keyboard: true },
     });
     while (true) {
@@ -160,16 +135,31 @@ export async function addWorkerConversation(
     }
   }
 
+  // ── Подтверждение ────────────────────────────────────────────────────────
+  await ctx.reply(`Добавить работника «${name}» (id ${telegramId})?`, {
+    reply_markup: new InlineKeyboard()
+      .text("✅ Добавить", "aw_confirm")
+      .text("❌ Отмена", "aw_cancel"),
+  });
+
+  const confirm = await conversation.waitForCallbackQuery(
+    /^aw_(confirm|cancel)$/
+  );
+  await confirm.answerCallbackQuery();
+  await confirm.editMessageReplyMarkup().catch(() => {});
+
+  if (confirm.callbackQuery.data === "aw_cancel") {
+    await ctx.reply("Отменено.");
+    return;
+  }
+
   await conversation.external(() =>
     prisma.worker.create({
       data: { telegramId, name, role: "WORKER" },
     })
   );
 
-  await ctx.reply(
-    `Работник ${name} (id ${telegramId}) добавлен. ` +
-      `Не забудь добавить его в служебный чат.`
-  );
+  await ctx.reply(`✅ Работник «${name}» добавлен.`);
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

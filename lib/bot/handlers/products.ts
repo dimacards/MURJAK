@@ -25,8 +25,19 @@ async function renderProductList(
 ): Promise<void> {
   const { query, page, edit } = opts;
 
+  // Поиск ищет И по названию товара (description), И по названию категории —
+  // так можно «написать категорию» и увидеть товары только из неё.
   const where = query
-    ? { description: { contains: query, mode: "insensitive" as const } }
+    ? {
+        OR: [
+          { description: { contains: query, mode: "insensitive" as const } },
+          {
+            category: {
+              name: { contains: query, mode: "insensitive" as const },
+            },
+          },
+        ],
+      }
     : {};
 
   const total = await prisma.product.count({ where });
