@@ -173,8 +173,9 @@ export async function addWorkerConversation(
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// /list_workers — список работников + кнопка удаления у каждого WORKER.
-// (объединяет бывшие /list_workers и /remove_worker)
+// /workers — единый интерфейс управления работниками.
+//   Список (кнопки) + «➕ Добавить работника».
+//   Клик по работнику → карточка с «🗑 Удалить» / «↩️ Назад».
 // ─────────────────────────────────────────────────────────────────────────────
 
 async function renderWorkersList(
@@ -185,24 +186,17 @@ async function renderWorkersList(
     orderBy: [{ role: "asc" }, { name: "asc" }], // OWNER первым
   });
 
-  if (workers.length === 0) {
-    const text = "В таблице нет ни одного работника.";
-    if (edit) await ctx.editMessageText(text).catch(() => {});
-    else await ctx.reply(text);
-    return;
-  }
-
-  const lines = workers.map(
-    (w) => `${w.name} (${w.telegramId}) — ${w.role}`
-  );
-  const text = `Работники:\n${lines.join("\n")}\n\nКнопки ниже — удалить работника.`;
-
-  // Кнопки удаления — только для WORKER (владельца удалять нельзя).
   const kb = new InlineKeyboard();
   for (const w of workers) {
-    if (w.role === "OWNER") continue;
-    kb.text(`🗑 ${w.name}`, `rm_worker:${w.id}`).row();
+    const roleLabel = w.role === "OWNER" ? "👑" : "👤";
+    kb.text(`${roleLabel} ${w.name}`, `w_open:${w.id}`).row();
   }
+  kb.text("➕ Добавить работника", "w_add");
+
+  const text =
+    workers.length > 0
+      ? "Работники. Нажми на работника, чтобы удалить:"
+      : "Работников пока нет.";
 
   if (edit) {
     await ctx.editMessageText(text, { reply_markup: kb }).catch(() => {});
@@ -211,31 +205,58 @@ async function renderWorkersList(
   }
 }
 
-export async function listWorkersCommand(ctx: AppContext): Promise<void> {
+export async function workersCommand(ctx: AppContext): Promise<void> {
   await renderWorkersList(ctx, false);
 }
 
-/** Клик по кнопке «🗑 {имя}» — удаляет работника и перерисовывает список. */
-export async function onRemoveWorkerCallback(ctx: AppContext): Promise<void> {
+/** w_open:{id} — карточка работника с кнопками удаления/назад. */
+export async function onWorkerOpen(ctx: AppContext): Promise<void> {
   const id = Number((ctx.match as RegExpMatchArray)?.[1]);
   const w = await prisma.worker.findUnique({ where: { id } });
-
+  await ctx.answerCallbackQuery();
   if (!w) {
-    await ctx.answerCallbackQuery({ text: "Уже удалён." });
     await renderWorkersList(ctx, true);
     return;
   }
-  if (w.role === "OWNER") {
+  const kb = new InlineKeyboard();
+  if (w.role !== "OWNER") kb.text("🗑 Удалить", `w_del:${w.id}`);
+  kb.text("↩️ Назад", "w_back");
+
+  const ownerNote = w.role === "OWNER" ? "\n\nВладельца удалить нельзя." : "";
+  await ctx
+    .editMessageText(
+      `${w.name} (${w.telegramId}) — ${w.role}${ownerNote}`,
+      { reply_markup: kb }
+    )
+    .catch(() => {});
+}
+
+/** w_del:{id} — удалить работника, вернуться к списку. */
+export async function onWorkerDelete(ctx: AppContext): Promise<void> {
+  const id = Number((ctx.match as RegExpMatchArray)?.[1]);
+  const w = await prisma.worker.findUnique({ where: { id } });
+  if (w && w.role === "OWNER") {
     await ctx.answerCallbackQuery({
       text: "Нельзя удалить владельца.",
       show_alert: true,
     });
     return;
   }
-
-  await prisma.worker.delete({ where: { id } });
-  await ctx.answerCallbackQuery({ text: `Удалён: ${w.name}` });
+  if (w) await prisma.worker.delete({ where: { id } });
+  await ctx.answerCallbackQuery({ text: w ? `Удалён: ${w.name}` : "Уже удалён" });
   await renderWorkersList(ctx, true);
+}
+
+/** w_back — вернуться к списку работников. */
+export async function onWorkerBack(ctx: AppContext): Promise<void> {
+  await ctx.answerCallbackQuery();
+  await renderWorkersList(ctx, true);
+}
+
+/** w_add — запустить диалог добавления работника. */
+export async function onWorkerAdd(ctx: AppContext): Promise<void> {
+  await ctx.answerCallbackQuery();
+  await ctx.conversation.enter("addWorkerConversation");
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -280,9 +301,10 @@ export async function addCategoryConversation(
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// /list_categories — список категорий + кнопка удаления у каждой.
-// (объединяет бывшие /list_categories и /remove_category)
-// Удаление блокируется, если в категории есть товары.
+// /categories — единый интерфейс управления категориями.
+//   Список (кнопки, со счётчиком товаров) + «➕ Добавить категорию».
+//   Клик по категории → карточка с «🗑 Удалить» / «↩️ Назад».
+//   Удаление блокируется, если в категории есть товары.
 // ─────────────────────────────────────────────────────────────────────────────
 
 async function renderCategoriesList(
@@ -291,32 +313,24 @@ async function renderCategoriesList(
 ): Promise<void> {
   const cats = await prisma.category.findMany({ orderBy: { name: "asc" } });
 
-  if (cats.length === 0) {
-    const text = "Категорий пока нет. Добавь через /add_category.";
-    if (edit) await ctx.editMessageText(text).catch(() => {});
-    else await ctx.reply(text);
-    return;
-  }
-
-  // Считаем товары в каждой категории, чтобы показать и блокировать удаление непустых.
-  const counts = await prisma.product.groupBy({
-    by: ["categoryId"],
-    _count: { _all: true },
-  });
-  const countMap = new Map(counts.map((c) => [c.categoryId, c._count._all]));
-
-  const lines = cats.map((c) => {
-    const n = countMap.get(c.id) ?? 0;
-    return `• ${c.name}${n > 0 ? ` (${n} ${pluralizeProducts(n)})` : ""}`;
-  });
-  const text =
-    `Категории:\n${lines.join("\n")}\n\n` +
-    `Кнопки ниже — удалить категорию (только пустую).`;
-
   const kb = new InlineKeyboard();
-  for (const c of cats) {
-    kb.text(`🗑 ${c.name}`, `rm_cat:${c.id}`).row();
+  if (cats.length > 0) {
+    const counts = await prisma.product.groupBy({
+      by: ["categoryId"],
+      _count: { _all: true },
+    });
+    const countMap = new Map(counts.map((c) => [c.categoryId, c._count._all]));
+    for (const c of cats) {
+      const n = countMap.get(c.id) ?? 0;
+      kb.text(`${c.name}${n > 0 ? ` (${n})` : ""}`, `c_open:${c.id}`).row();
+    }
   }
+  kb.text("➕ Добавить категорию", "c_add");
+
+  const text =
+    cats.length > 0
+      ? "Категории. Нажми на категорию, чтобы удалить (в скобках — число товаров):"
+      : "Категорий пока нет.";
 
   if (edit) {
     await ctx.editMessageText(text, { reply_markup: kb }).catch(() => {});
@@ -325,23 +339,44 @@ async function renderCategoriesList(
   }
 }
 
-export async function listCategoriesCommand(ctx: AppContext): Promise<void> {
+export async function categoriesCommand(ctx: AppContext): Promise<void> {
   await renderCategoriesList(ctx, false);
 }
 
-/** Клик по «🗑 {категория}» — удаляет (если пустая) и перерисовывает список. */
-export async function onRemoveCategoryCallback(
-  ctx: AppContext
-): Promise<void> {
+/** c_open:{id} — карточка категории с удалением/назад. */
+export async function onCategoryOpen(ctx: AppContext): Promise<void> {
   const id = Number((ctx.match as RegExpMatchArray)?.[1]);
   const cat = await prisma.category.findUnique({ where: { id } });
+  await ctx.answerCallbackQuery();
+  if (!cat) {
+    await renderCategoriesList(ctx, true);
+    return;
+  }
+  const productCount = await prisma.product.count({
+    where: { categoryId: id },
+  });
+  const kb = new InlineKeyboard();
+  kb.text("🗑 Удалить", `c_del:${cat.id}`);
+  kb.text("↩️ Назад", "c_back");
 
+  const note =
+    productCount > 0
+      ? `\n\nВ категории ${productCount} ${pluralizeProducts(productCount)} — удалить нельзя, пока они есть.`
+      : "";
+  await ctx
+    .editMessageText(`Категория «${cat.name}»${note}`, { reply_markup: kb })
+    .catch(() => {});
+}
+
+/** c_del:{id} — удалить пустую категорию, вернуться к списку. */
+export async function onCategoryDelete(ctx: AppContext): Promise<void> {
+  const id = Number((ctx.match as RegExpMatchArray)?.[1]);
+  const cat = await prisma.category.findUnique({ where: { id } });
   if (!cat) {
     await ctx.answerCallbackQuery({ text: "Уже удалена." });
     await renderCategoriesList(ctx, true);
     return;
   }
-
   const productCount = await prisma.product.count({
     where: { categoryId: id },
   });
@@ -352,10 +387,21 @@ export async function onRemoveCategoryCallback(
     });
     return;
   }
-
   await prisma.category.delete({ where: { id } });
   await ctx.answerCallbackQuery({ text: `Удалена: ${cat.name}` });
   await renderCategoriesList(ctx, true);
+}
+
+/** c_back — вернуться к списку категорий. */
+export async function onCategoryBack(ctx: AppContext): Promise<void> {
+  await ctx.answerCallbackQuery();
+  await renderCategoriesList(ctx, true);
+}
+
+/** c_add — запустить диалог добавления категории. */
+export async function onCategoryAdd(ctx: AppContext): Promise<void> {
+  await ctx.answerCallbackQuery();
+  await ctx.conversation.enter("addCategoryConversation");
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

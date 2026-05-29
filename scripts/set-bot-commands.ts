@@ -20,10 +20,8 @@ const WORKER_COMMANDS = [
 
 const OWNER_COMMANDS = [
   ...WORKER_COMMANDS,
-  { command: "add_worker", description: "Добавить работника" },
-  { command: "list_workers", description: "Работники (+ удаление)" },
-  { command: "add_category", description: "Добавить категорию" },
-  { command: "list_categories", description: "Категории (+ удаление)" },
+  { command: "workers", description: "Работники (добавить / удалить)" },
+  { command: "categories", description: "Категории (добавить / удалить)" },
 ];
 
 async function main() {

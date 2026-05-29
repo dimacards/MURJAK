@@ -11,10 +11,16 @@ import { startHandler } from "./handlers/start";
 import {
   addWorkerConversation,
   addCategoryConversation,
-  listWorkersCommand,
-  listCategoriesCommand,
-  onRemoveWorkerCallback,
-  onRemoveCategoryCallback,
+  workersCommand,
+  onWorkerOpen,
+  onWorkerDelete,
+  onWorkerBack,
+  onWorkerAdd,
+  categoriesCommand,
+  onCategoryOpen,
+  onCategoryDelete,
+  onCategoryBack,
+  onCategoryAdd,
 } from "./handlers/owner";
 import { addProductConversation } from "./conversations/add-product";
 import {
@@ -126,22 +132,20 @@ bot.command("add_product", privateOnly, async (ctx) => {
 bot.command("products", privateOnly, productsCommand);
 
 // OWNER-only команды.
-bot.command("add_worker", privateOnly, ownerOnly, async (ctx) => {
-  await ctx.conversation.enter("addWorkerConversation");
-});
-// /list_workers и /list_categories — список + кнопки удаления у каждого
-// элемента (бывшие /remove_worker, /remove_category объединены сюда).
-bot.command("list_workers", privateOnly, ownerOnly, listWorkersCommand);
+// /workers и /categories — единый интерфейс: список + «➕ Добавить»,
+// клик по элементу → удалить/назад. Добавление запускается из кнопки внутри.
+bot.command("workers", privateOnly, ownerOnly, workersCommand);
+bot.command("categories", privateOnly, ownerOnly, categoriesCommand);
 
-bot.command("add_category", privateOnly, ownerOnly, async (ctx) => {
-  await ctx.conversation.enter("addCategoryConversation");
-});
-bot.command("list_categories", privateOnly, ownerOnly, listCategoriesCommand);
-
-// 4. Callback-кнопки удаления из списков /list_workers и /list_categories
-// (OWNER-only).
-bot.callbackQuery(/^rm_worker:(\d+)$/, ownerOnly, onRemoveWorkerCallback);
-bot.callbackQuery(/^rm_cat:(\d+)$/, ownerOnly, onRemoveCategoryCallback);
+// 4. Callback-кнопки управления работниками и категориями (OWNER-only).
+bot.callbackQuery(/^w_open:(\d+)$/, ownerOnly, onWorkerOpen);
+bot.callbackQuery(/^w_del:(\d+)$/, ownerOnly, onWorkerDelete);
+bot.callbackQuery(/^w_back$/, ownerOnly, onWorkerBack);
+bot.callbackQuery(/^w_add$/, ownerOnly, onWorkerAdd);
+bot.callbackQuery(/^c_open:(\d+)$/, ownerOnly, onCategoryOpen);
+bot.callbackQuery(/^c_del:(\d+)$/, ownerOnly, onCategoryDelete);
+bot.callbackQuery(/^c_back$/, ownerOnly, onCategoryBack);
+bot.callbackQuery(/^c_add$/, ownerOnly, onCategoryAdd);
 
 // 5. Кнопки служебного чата:
 //    edit:{id}            — клик в служебном чате, бот пишет в ЛС меню полей.

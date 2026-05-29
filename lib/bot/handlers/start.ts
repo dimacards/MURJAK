@@ -7,10 +7,8 @@ const COMMON_COMMANDS = [
 
 const OWNER_COMMANDS = [
   ...COMMON_COMMANDS,
-  "/add_worker — добавить работника",
-  "/list_workers — работники (+ удаление)",
-  "/add_category — добавить категорию",
-  "/list_categories — категории (+ удаление)",
+  "/workers — работники (добавить / удалить)",
+  "/categories — категории (добавить / удалить)",
 ];
 
 const WORKER_COMMANDS = COMMON_COMMANDS;
