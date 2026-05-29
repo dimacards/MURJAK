@@ -259,35 +259,55 @@ export async function addCategoryConversation(
 ): Promise<void> {
   await ctx.reply("Введи название новой категории (или /cancel):");
 
+  let name: string;
   while (true) {
     const next = await conversation.waitFor("message:text");
-    const name = next.message.text.trim();
+    const n = next.message.text.trim();
 
-    if (name === "/cancel") {
+    if (n === "/cancel") {
       await next.reply("Отменено.");
       return;
     }
-    if (!name) {
+    if (!n) {
       await next.reply("Пустое название. Введи ещё раз (или /cancel):");
       continue;
     }
 
     const existing = await conversation.external(() =>
-      prisma.category.findUnique({ where: { name } })
+      prisma.category.findUnique({ where: { name: n } })
     );
     if (existing) {
       await next.reply(
-        `Категория «${name}» уже есть. Введи другое название (или /cancel):`
+        `Категория «${n}» уже есть. Введи другое название (или /cancel):`
       );
       continue;
     }
-
-    await conversation.external(() =>
-      prisma.category.create({ data: { name } })
-    );
-    await next.reply(`Категория «${name}» добавлена.`);
-    return;
+    name = n;
+    break;
   }
+
+  // Тип размерной сетки: одежда (кнопки XS..XXL) или обувь (ручной ввод).
+  await ctx.reply(`Какие размеры у категории «${name}»?`, {
+    reply_markup: new InlineKeyboard()
+      .text("👕 Одежда (XS–XXL)", "cat_type:CLOTHING")
+      .row()
+      .text("👟 Обувь (вручную)", "cat_type:SHOE"),
+  });
+
+  const typePick = await conversation.waitForCallbackQuery(
+    /^cat_type:(CLOTHING|SHOE)$/
+  );
+  const sizeType = (typePick.match as RegExpMatchArray)[1] as
+    | "CLOTHING"
+    | "SHOE";
+  await typePick.answerCallbackQuery();
+  await typePick.editMessageReplyMarkup().catch(() => {});
+
+  await conversation.external(() =>
+    prisma.category.create({ data: { name, sizeType } })
+  );
+  const label = sizeType === "SHOE" ? "обувь" : "одежда";
+  await ctx.reply(`Категория «${name}» (${label}) добавлена.`);
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

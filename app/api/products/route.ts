@@ -1,4 +1,4 @@
-import { Size, type Prisma } from "@prisma/client";
+import { type Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import {
   PRODUCT_SORT,
@@ -11,7 +11,6 @@ export const dynamic = "force-dynamic";
 
 const DEFAULT_LIMIT = 24;
 const MAX_LIMIT = 60;
-const VALID_SIZES = Object.values(Size);
 
 /** Парсит целое число из строки query-параметра с опциональными границами. */
 function parseInt(
@@ -50,11 +49,9 @@ export async function GET(req: Request) {
 
     // ── Фильтры ────────────────────────────────────────────────────────────
     const categoryId = parseInt(searchParams.get("category"), 1);
-    const sizeRaw = searchParams.get("size");
-    const size =
-      sizeRaw && (VALID_SIZES as string[]).includes(sizeRaw)
-        ? (sizeRaw as Size)
-        : undefined;
+    // size — произвольная строка (XS..XXL или размер обуви). Точное совпадение.
+    const sizeRaw = searchParams.get("size")?.trim();
+    const size = sizeRaw && sizeRaw.length > 0 ? sizeRaw : undefined;
     const conditionMin = parseInt(searchParams.get("conditionMin"), 1, 10);
     const conditionMax = parseInt(searchParams.get("conditionMax"), 1, 10);
     const priceMin = parseInt(searchParams.get("priceMin"), 0);

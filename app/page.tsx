@@ -143,18 +143,26 @@ export default function Home() {
         </select>
 
         <label htmlFor="f-size">Размер</label>
-        <select
-          id="f-size"
-          value={draft.size}
-          onChange={(e) => setDraft({ ...draft, size: e.target.value })}
-        >
-          <option value="">любой</option>
+        <span style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>
+          <input
+            id="f-size"
+            type="text"
+            placeholder="напр. M или 42"
+            value={draft.size}
+            onChange={(e) => setDraft({ ...draft, size: e.target.value })}
+            style={{ width: 110 }}
+          />
           {SIZES.map((s) => (
-            <option key={s} value={s}>
+            <button
+              key={s}
+              type="button"
+              onClick={() => setDraft({ ...draft, size: s })}
+              style={{ padding: "2px 6px" }}
+            >
               {s}
-            </option>
+            </button>
           ))}
-        </select>
+        </span>
 
         <label>Состояние</label>
         <span>

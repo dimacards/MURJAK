@@ -1,15 +1,15 @@
-import type { Size } from "@prisma/client";
-
 /**
  * DTO одного товара в публичном API. Не путать с Prisma-моделью Product —
  * это упрощённое представление для витрины: только активные товары,
  * категория плоской строкой, фото — массивом publicUrl.
+ *
+ * size — строка: «XS».. «XXL» для одежды либо произвольный размер обуви.
  */
 export type ProductDto = {
   id: number;
   category: string;
   description: string | null;
-  size: Size;
+  size: string;
   condition: number;
   price: number;
   photos: string[];

@@ -15,7 +15,10 @@ import { Bot } from "grammy";
 const WORKER_COMMANDS = [
   { command: "start", description: "Информация о боте" },
   { command: "add_product", description: "Добавить товар" },
-  { command: "products", description: "Список товаров — править/продать/удалить" },
+  {
+    command: "products",
+    description: "Товары. Поиск: /products <название или категория>",
+  },
 ];
 
 const OWNER_COMMANDS = [

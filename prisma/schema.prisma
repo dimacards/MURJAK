@@ -16,13 +16,12 @@ enum Role {
   WORKER
 }
 
-enum Size {
-  XS
-  S
-  M
-  L
-  XL
-  XXL
+// Тип размерной сетки категории. Определяет, как вводится размер товара:
+//  - CLOTHING: фиксированные кнопки XS..XXL
+//  - SHOE: размер вводится вручную текстом (37, 42, 42.5 и т.п.)
+enum SizeType {
+  CLOTHING
+  SHOE
 }
 
 enum ProductStatus {
@@ -45,6 +44,7 @@ model Worker {
 model Category {
   id        Int      @id @default(autoincrement())
   name      String   @unique
+  sizeType  SizeType @default(CLOTHING) // одежда (XS..XXL) или обувь (ручной ввод)
   createdAt DateTime @default(now())
 
   products Product[]
@@ -54,7 +54,7 @@ model Product {
   id                Int           @id @default(autoincrement())
   categoryId        Int
   description       String?       // короткое название товара («Cardigan Jenasis»). Отображается жирным в постах вместо/над категорией. Опциональное для backward compat со старыми товарами.
-  size              Size
+  size              String        // «XS».. «XXL» для одежды, либо произвольный размер обуви («42»). Тип определяется Category.sizeType.
   condition         Int           // 1..10
   price             Int           // рубли
   status            ProductStatus @default(ACTIVE)

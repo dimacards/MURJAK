@@ -1,5 +1,4 @@
 import { InlineKeyboard } from "grammy";
-import type { Size } from "@prisma/client";
 import { prisma } from "../../db";
 import config from "../../config";
 import type { AppContext, AppConversation } from "../types";
@@ -11,7 +10,8 @@ import {
 } from "../channel";
 import { sendToServiceChat } from "../service-chat";
 
-const SIZES: Size[] = ["XS", "S", "M", "L", "XL", "XXL"];
+// Размеры для категорий типа CLOTHING. Для SHOE размер вводится вручную.
+const CLOTHING_SIZES = ["XS", "S", "M", "L", "XL", "XXL"] as const;
 const MAX_PHOTOS = 10;
 
 type CollectedPhoto = { fileId: string };
@@ -195,14 +195,29 @@ export async function addProductConversation(
           await showCategoryMenu();
           continue categoryLoop;
         }
+        // Выбор типа размерной сетки.
+        await nameMsg.reply(`Какие размеры у «${name}»?`, {
+          reply_markup: new InlineKeyboard()
+            .text("👕 Одежда", "ap_cattype:CLOTHING")
+            .text("👟 Обувь", "ap_cattype:SHOE"),
+        });
+        const typePick = await conversation.waitForCallbackQuery(
+          /^ap_cattype:(CLOTHING|SHOE)$/
+        );
+        const sizeType = (typePick.match as RegExpMatchArray)[1] as
+          | "CLOTHING"
+          | "SHOE";
+        await typePick.answerCallbackQuery();
+        await typePick.editMessageReplyMarkup().catch(() => {});
+
         const created = await conversation.external(() =>
-          prisma.category.create({ data: { name } })
+          prisma.category.create({ data: { name, sizeType } })
         );
         categories = await conversation.external(() =>
           prisma.category.findMany({ orderBy: { name: "asc" } })
         );
         categoryId = created.id;
-        await nameMsg.reply(
+        await ctx.reply(
           `Категория «${created.name}» создана и выбрана для товара.`
         );
         break categoryLoop;
@@ -244,34 +259,66 @@ export async function addProductConversation(
   }
 
   // ── Шаг 3: размер ─────────────────────────────────────────────────────────
-  const sizeKb = new InlineKeyboard()
-    .text("XS", "ap_size:XS")
-    .text("S", "ap_size:S")
-    .text("M", "ap_size:M")
-    .row()
-    .text("L", "ap_size:L")
-    .text("XL", "ap_size:XL")
-    .text("XXL", "ap_size:XXL")
-    .row()
-    .text("Отмена", "ap_cancel");
-  await ctx.reply("Выбери размер:", { reply_markup: sizeKb });
+  // Определяем тип размерной сетки выбранной категории.
+  const chosenCategory = await conversation.external(() =>
+    prisma.category.findUnique({ where: { id: categoryId } })
+  );
+  const isShoe = chosenCategory?.sizeType === "SHOE";
 
-  let size: Size;
-  while (true) {
-    const next = await conversation.waitForCallbackQuery(
-      /^ap_(size:(?:XS|S|M|L|XL|XXL)|cancel)$/
+  let size: string;
+  if (isShoe) {
+    // Обувь — размер вводится вручную (произвольная строка).
+    await ctx.reply(
+      "Укажи размер обуви (например, 42 или 42.5). Или /cancel:"
     );
-    const data = next.callbackQuery.data;
-    if (data === "ap_cancel") {
-      await next.answerCallbackQuery();
-      await ctx.reply("Отменено.");
-      return;
-    }
-    const m = data?.match(/^ap_size:(\w+)$/);
-    if (m && SIZES.includes(m[1] as Size)) {
-      size = m[1] as Size;
-      await next.answerCallbackQuery();
+    while (true) {
+      const next = await conversation.waitFor("message:text");
+      const t = next.message.text.trim();
+      if (t === "/cancel") {
+        await next.reply("Отменено.");
+        return;
+      }
+      if (!t) {
+        await next.reply("Пустой размер. Введи ещё раз (или /cancel):");
+        continue;
+      }
+      if (t.length > 10) {
+        await next.reply("Слишком длинно. Введи короткий размер (или /cancel):");
+        continue;
+      }
+      size = t;
       break;
+    }
+  } else {
+    // Одежда — кнопки XS..XXL.
+    const sizeKb = new InlineKeyboard()
+      .text("XS", "ap_size:XS")
+      .text("S", "ap_size:S")
+      .text("M", "ap_size:M")
+      .row()
+      .text("L", "ap_size:L")
+      .text("XL", "ap_size:XL")
+      .text("XXL", "ap_size:XXL")
+      .row()
+      .text("Отмена", "ap_cancel");
+    await ctx.reply("Выбери размер:", { reply_markup: sizeKb });
+
+    while (true) {
+      const next = await conversation.waitForCallbackQuery(
+        /^ap_(size:(?:XS|S|M|L|XL|XXL)|cancel)$/
+      );
+      const data = next.callbackQuery.data;
+      if (data === "ap_cancel") {
+        await next.answerCallbackQuery();
+        await ctx.reply("Отменено.");
+        return;
+      }
+      const m = data?.match(/^ap_size:(\w+)$/);
+      if (m && (CLOTHING_SIZES as readonly string[]).includes(m[1])) {
+        size = m[1];
+        await next.answerCallbackQuery();
+        break;
+      }
     }
   }
 

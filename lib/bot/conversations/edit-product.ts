@@ -1,5 +1,5 @@
 import { InlineKeyboard } from "grammy";
-import type { Category, Photo, Product, Size } from "@prisma/client";
+import type { Category, Photo, Product } from "@prisma/client";
 import { prisma } from "../../db";
 import { supabase, SUPABASE_BUCKET } from "../../supabase";
 import type { AppContext, AppConversation } from "../types";
@@ -179,6 +179,37 @@ async function editSize(
   ctx: AppContext,
   product: ProductWithRelations
 ): Promise<void> {
+  const isShoe = product.category.sizeType === "SHOE";
+
+  if (isShoe) {
+    // Обувь — ручной ввод нового размера.
+    await ctx.reply(
+      "Укажи новый размер обуви (например, 42 или 42.5) или /cancel:"
+    );
+    while (true) {
+      const next = await conversation.waitFor("message:text");
+      const t = next.message.text.trim();
+      if (t === "/cancel") {
+        await cancelAndRestore(conversation, ctx, product.id);
+        return;
+      }
+      if (!t || t.length > 10) {
+        await next.reply("Некорректный размер. Введи ещё раз (или /cancel):");
+        continue;
+      }
+      const updated = await conversation.external(() =>
+        prisma.product.update({
+          where: { id: product.id },
+          data: { size: t },
+          include: { category: true, photos: true },
+        })
+      );
+      await finishEdit(ctx, updated);
+      return;
+    }
+  }
+
+  // Одежда — кнопки XS..XXL.
   const kb = new InlineKeyboard()
     .text("XS", "eds:XS")
     .text("S", "eds:S")
@@ -207,7 +238,7 @@ async function editSize(
       const updated = await conversation.external(() =>
         prisma.product.update({
           where: { id: product.id },
-          data: { size: m[1] as Size },
+          data: { size: m[1] },
           include: { category: true, photos: true },
         })
       );
