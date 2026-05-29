@@ -12,7 +12,7 @@ const SERVICE_CHAT_ID = process.env.SERVICE_CHAT_ID;
  * Меню выбора поля для редактирования. Шлётся работнику в ЛС после клика
  * по «✏️ Редактировать» в служебном чате.
  */
-function buildEditFieldMenu(productId: number): InlineKeyboard {
+export function buildEditFieldMenu(productId: number): InlineKeyboard {
   return new InlineKeyboard()
     .text("📝 Название", `editfield:${productId}:description`)
     .text("📷 Фото", `editfield:${productId}:photos`)

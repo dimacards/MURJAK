@@ -358,11 +358,16 @@ export async function addProductConversation(
     const data = next.callbackQuery.data;
     if (data === "ap_cancel") {
       await next.answerCallbackQuery();
+      // Убираем кнопки, чтобы повторный клик был невозможен.
+      await next.editMessageReplyMarkup().catch(() => {});
       await ctx.reply("Отменено.");
       return;
     }
     if (data === "ap_publish") {
       await next.answerCallbackQuery({ text: "Сохраняю..." });
+      // Защита от дабл-тапа: сразу убираем inline-кнопки у превью.
+      // Повторный клик уже не на чем сделать → дубля публикации не будет.
+      await next.editMessageReplyMarkup().catch(() => {});
       break;
     }
   }
@@ -466,36 +471,44 @@ export async function addProductConversation(
     })
   );
 
-  // ── Шаг 9: копия в служебный чат ──────────────────────────────────────────
-  let serviceIds: { mediaMessageIds: number[]; controlMessageId: number };
-  try {
-    serviceIds = await sendToServiceChat(ctx.api, product, product.photos);
-  } catch (e) {
-    console.error("sendToServiceChat failed:", e);
-    await ctx.reply(
-      `Товар опубликован в канале, но не удалось отправить копию в служебный чат:\n` +
-        `${e instanceof Error ? e.message : String(e)}\n\n` +
-        `Управление через кнопки для этого товара будет недоступно. ` +
-        `Проверь, что бот добавлен в служебный чат и имеет право писать.`
-    );
-    return;
+  // ── Шаг 9: копия в служебный чат (ОПЦИОНАЛЬНО) ────────────────────────────
+  // Если SERVICE_CHAT_ID не задан в .env — пропускаем. Управление товаром
+  // тогда идёт через команду /products в боте.
+  const serviceChatEnabled = Boolean(process.env.SERVICE_CHAT_ID);
+  if (serviceChatEnabled) {
+    try {
+      const serviceIds = await sendToServiceChat(
+        ctx.api,
+        product,
+        product.photos
+      );
+      await conversation.external(() =>
+        prisma.product.update({
+          where: { id: product.id },
+          data: {
+            serviceMediaMessageIds: serviceIds.mediaMessageIds,
+            serviceMessageId: serviceIds.controlMessageId,
+          },
+        })
+      );
+    } catch (e) {
+      console.error("sendToServiceChat failed:", e);
+      await ctx.reply(
+        `Товар опубликован в канале, но не удалось отправить копию в служебный чат:\n` +
+          `${e instanceof Error ? e.message : String(e)}\n\n` +
+          `Управлять товаром можно через /products.`
+      );
+      return;
+    }
   }
-
-  await conversation.external(() =>
-    prisma.product.update({
-      where: { id: product.id },
-      data: {
-        serviceMediaMessageIds: serviceIds.mediaMessageIds,
-        serviceMessageId: serviceIds.controlMessageId,
-      },
-    })
-  );
 
   const channelMention = config.channelUsername
     ? `@${config.channelUsername}`
     : "канале";
+  const manageHint = serviceChatEnabled
+    ? "Управляй кнопками в служебном чате или через /products."
+    : "Управлять товаром можно через /products.";
   await ctx.reply(
-    `✅ Товар опубликован в ${channelMention} и в служебном чате. ` +
-      `Управляй кнопками в служебном чате.`
+    `✅ Товар опубликован в ${channelMention}. ${manageHint}`
   );
 }

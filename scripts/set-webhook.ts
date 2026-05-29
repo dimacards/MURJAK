@@ -45,6 +45,11 @@ async function main() {
         url: webhookUrl,
         drop_pending_updates: true,
         allowed_updates: ["message", "callback_query"],
+        // Последовательная доставка апдейтов: следующий webhook стартует
+        // только после ответа на предыдущий. Это защищает от дабл-тапа
+        // «Опубликовать» (два клика не обработаются параллельно на разных
+        // serverless-инстансах).
+        max_connections: 1,
       }),
     }
   );

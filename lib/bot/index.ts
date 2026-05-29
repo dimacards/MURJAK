@@ -26,6 +26,18 @@ import {
 } from "./conversations/edit-product";
 import { onEditClick, onEditCancel } from "./handlers/edit";
 import { onSoldClick, onRestockClick } from "./handlers/sold";
+import {
+  productsCommand,
+  onProductsPage,
+  onProductsNoop,
+  onProductOpen,
+  onProductEdit,
+  onProductSold,
+  onProductRestock,
+  onProductDeletePrompt,
+  onProductDeleteConfirm,
+  onProductDeleteCancel,
+} from "./handlers/products";
 import { prisma } from "../db";
 
 const token = process.env.BOT_TOKEN;
@@ -88,6 +100,10 @@ bot.command("add_product", privateOnly, async (ctx) => {
   await ctx.conversation.enter("addProductConversation", ctx.worker.id);
 });
 
+// /products [запрос] — листалка/поиск товаров прямо в боте (WORKER и OWNER).
+// Позволяет управлять товарами без служебного чата.
+bot.command("products", privateOnly, productsCommand);
+
 // OWNER-only команды.
 bot.command("add_worker", privateOnly, ownerOnly, async (ctx) => {
   await ctx.conversation.enter("addWorkerConversation");
@@ -141,3 +157,14 @@ bot.callbackQuery(
 
 bot.callbackQuery(/^sold:(\d+)$/, onSoldClick);
 bot.callbackQuery(/^restock:(\d+)$/, onRestockClick);
+
+// 6. Кнопки листалки /products (управление товарами в ЛС бота).
+bot.callbackQuery(/^plist:(\d+)$/, onProductsPage);
+bot.callbackQuery(/^pnoop$/, onProductsNoop);
+bot.callbackQuery(/^popen:(\d+)$/, onProductOpen);
+bot.callbackQuery(/^pedit:(\d+)$/, onProductEdit);
+bot.callbackQuery(/^psold:(\d+)$/, onProductSold);
+bot.callbackQuery(/^prestk:(\d+)$/, onProductRestock);
+bot.callbackQuery(/^pdel:(\d+)$/, onProductDeletePrompt);
+bot.callbackQuery(/^pdely:(\d+)$/, onProductDeleteConfirm);
+bot.callbackQuery(/^pdeln$/, onProductDeleteCancel);

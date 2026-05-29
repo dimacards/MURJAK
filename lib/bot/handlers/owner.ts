@@ -438,54 +438,60 @@ export async function deleteProductCommand(ctx: AppContext): Promise<void> {
     product = matches[0];
   }
 
-  const progress = await ctx.reply(
+  await ctx.reply(
     `Удаляю товар №${product.id} (${product.category.name}, ${product.price} ₽)...`
   );
-  const chatId = progress.chat.id;
-  const progressId = progress.message_id;
-  const updateProgress = async (text: string) => {
-    await ctx.api.editMessageText(chatId, progressId, text).catch(() => {});
-  };
+  const result = await deleteProductById(ctx.api, product.id);
+  await ctx.reply(result);
+}
 
-  // 1. Сообщения в канале — best effort.
+/**
+ * Полностью удаляет товар: пост в канале, сообщения в служебном чате, файлы
+ * в Supabase Storage и запись в БД (Photo каскадно). Best-effort по внешним
+ * системам — если какое-то удаление упадёт, продолжаем (товар всё равно
+ * исчезнет из БД). Возвращает текст результата.
+ *
+ * Вынесено, чтобы вызывать и из /delete_product, и из листалки /products.
+ */
+export async function deleteProductById(
+  api: AppContext["api"],
+  id: number
+): Promise<string> {
+  const product = await prisma.product.findUnique({
+    where: { id },
+    include: { category: true, photos: true },
+  });
+  if (!product) return `Товар №${id} не найден.`;
+
+  // 1. Канал.
   if (product.channelMessageIds.length > 0) {
-    await updateProgress(`Удаляю пост в канале...`);
     try {
-      await deleteChannelPost(ctx.api, product);
+      await deleteChannelPost(api, product);
     } catch (e) {
-      console.warn("deleteChannelPost in /delete_product:", e);
+      console.warn("deleteChannelPost in deleteProductById:", e);
     }
   }
-
-  // 2. Сообщения в служебном чате — best effort.
+  // 2. Служебный чат.
   if (
     product.serviceMessageId !== null ||
     product.serviceMediaMessageIds.length > 0
   ) {
-    await updateProgress(`Удаляю в служебном чате...`);
     try {
-      await deleteServicePost(ctx.api, product);
+      await deleteServicePost(api, product);
     } catch (e) {
-      console.warn("deleteServicePost in /delete_product:", e);
+      console.warn("deleteServicePost in deleteProductById:", e);
     }
   }
-
-  // 3. Файлы в Supabase Storage — best effort.
+  // 3. Supabase Storage.
   if (product.photos.length > 0) {
-    await updateProgress(`Удаляю фото из хранилища...`);
     const paths = product.photos.map((p) => p.storagePath);
     const { error } = await supabase.storage
       .from(SUPABASE_BUCKET)
       .remove(paths);
-    if (error) {
-      console.warn("supabase remove in /delete_product:", error);
-    }
+    if (error) console.warn("supabase remove in deleteProductById:", error);
   }
-
-  // 4. БД — Photo каскадно удаляются по foreign key onDelete: Cascade.
+  // 4. БД.
   await prisma.product.delete({ where: { id: product.id } });
 
-  await updateProgress(
-    `✅ Товар №${product.id} удалён полностью (БД, Supabase, канал, служебный чат).`
-  );
+  return `✅ Товар №${product.id} удалён полностью.`;
 }
