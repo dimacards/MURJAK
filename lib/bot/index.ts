@@ -11,13 +11,10 @@ import { startHandler } from "./handlers/start";
 import {
   addWorkerConversation,
   addCategoryConversation,
-  removeWorkerCommand,
-  removeCategoryCommand,
   listWorkersCommand,
   listCategoriesCommand,
   onRemoveWorkerCallback,
   onRemoveCategoryCallback,
-  deleteProductCommand,
 } from "./handlers/owner";
 import { addProductConversation } from "./conversations/add-product";
 import {
@@ -132,28 +129,19 @@ bot.command("products", privateOnly, productsCommand);
 bot.command("add_worker", privateOnly, ownerOnly, async (ctx) => {
   await ctx.conversation.enter("addWorkerConversation");
 });
-bot.command("remove_worker", privateOnly, ownerOnly, removeWorkerCommand);
+// /list_workers и /list_categories — список + кнопки удаления у каждого
+// элемента (бывшие /remove_worker, /remove_category объединены сюда).
 bot.command("list_workers", privateOnly, ownerOnly, listWorkersCommand);
 
 bot.command("add_category", privateOnly, ownerOnly, async (ctx) => {
   await ctx.conversation.enter("addCategoryConversation");
 });
-bot.command("remove_category", privateOnly, ownerOnly, removeCategoryCommand);
 bot.command("list_categories", privateOnly, ownerOnly, listCategoriesCommand);
 
-bot.command("delete_product", privateOnly, ownerOnly, deleteProductCommand);
-
-// 4. Callback-кнопки для inline-меню (тоже OWNER-only).
-bot.callbackQuery(
-  /^rm_worker:(\d+|cancel)$/,
-  ownerOnly,
-  onRemoveWorkerCallback
-);
-bot.callbackQuery(
-  /^rm_cat:(\d+|cancel)$/,
-  ownerOnly,
-  onRemoveCategoryCallback
-);
+// 4. Callback-кнопки удаления из списков /list_workers и /list_categories
+// (OWNER-only).
+bot.callbackQuery(/^rm_worker:(\d+)$/, ownerOnly, onRemoveWorkerCallback);
+bot.callbackQuery(/^rm_cat:(\d+)$/, ownerOnly, onRemoveCategoryCallback);
 
 // 5. Кнопки служебного чата:
 //    edit:{id}            — клик в служебном чате, бот пишет в ЛС меню полей.

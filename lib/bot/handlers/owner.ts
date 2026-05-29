@@ -173,80 +173,69 @@ export async function addWorkerConversation(
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// /remove_worker — inline-кнопки со всеми WORKER (без OWNER).
+// /list_workers — список работников + кнопка удаления у каждого WORKER.
+// (объединяет бывшие /list_workers и /remove_worker)
 // ─────────────────────────────────────────────────────────────────────────────
 
-export async function removeWorkerCommand(ctx: AppContext): Promise<void> {
+async function renderWorkersList(
+  ctx: AppContext,
+  edit: boolean
+): Promise<void> {
   const workers = await prisma.worker.findMany({
-    where: { role: "WORKER" },
-    orderBy: { name: "asc" },
+    orderBy: [{ role: "asc" }, { name: "asc" }], // OWNER первым
   });
 
   if (workers.length === 0) {
-    await ctx.reply("Работников (кроме владельца) пока нет.");
-    return;
-  }
-
-  const kb = new InlineKeyboard();
-  for (const w of workers) {
-    kb.text(`${w.name} (${w.telegramId})`, `rm_worker:${w.id}`).row();
-  }
-  kb.text("Отмена", "rm_worker:cancel");
-
-  await ctx.reply("Кого удалить?", { reply_markup: kb });
-}
-
-export async function onRemoveWorkerCallback(ctx: AppContext): Promise<void> {
-  // Регистрируется на /^rm_worker:(\d+|cancel)$/ — match[1] = id или "cancel".
-  // ctx.match[1] доступен потому, что bot.callbackQuery(regex, ...) кладёт сюда матч.
-  const arg = (ctx.match as RegExpMatchArray)?.[1];
-
-  if (arg === "cancel") {
-    await ctx.editMessageText("Отменено.");
-    await ctx.answerCallbackQuery();
-    return;
-  }
-
-  const id = Number(arg);
-  const w = await prisma.worker.findUnique({ where: { id } });
-
-  if (!w) {
-    await ctx.editMessageText("Работник уже удалён.");
-    await ctx.answerCallbackQuery();
-    return;
-  }
-  if (w.role === "OWNER") {
-    // Защита от случайного удаления владельца через ручной callback (наш UI его не показывает).
-    await ctx.editMessageText("Нельзя удалить владельца.");
-    await ctx.answerCallbackQuery();
-    return;
-  }
-
-  await prisma.worker.delete({ where: { id } });
-  await ctx.editMessageText(
-    `Работник ${w.name} удалён. Не забудь удалить его из служебного чата.`
-  );
-  await ctx.answerCallbackQuery();
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// /list_workers — текстовый список.
-// ─────────────────────────────────────────────────────────────────────────────
-
-export async function listWorkersCommand(ctx: AppContext): Promise<void> {
-  const workers = await prisma.worker.findMany({
-    orderBy: [{ role: "asc" }, { name: "asc" }], // OWNER первым (алф. порядок enum)
-  });
-
-  if (workers.length === 0) {
-    await ctx.reply("В таблице нет ни одного работника.");
+    const text = "В таблице нет ни одного работника.";
+    if (edit) await ctx.editMessageText(text).catch(() => {});
+    else await ctx.reply(text);
     return;
   }
 
   const lines = workers.map(
     (w) => `${w.name} (${w.telegramId}) — ${w.role}`
   );
-  await ctx.reply(lines.join("\n"));
+  const text = `Работники:\n${lines.join("\n")}\n\nКнопки ниже — удалить работника.`;
+
+  // Кнопки удаления — только для WORKER (владельца удалять нельзя).
+  const kb = new InlineKeyboard();
+  for (const w of workers) {
+    if (w.role === "OWNER") continue;
+    kb.text(`🗑 ${w.name}`, `rm_worker:${w.id}`).row();
+  }
+
+  if (edit) {
+    await ctx.editMessageText(text, { reply_markup: kb }).catch(() => {});
+  } else {
+    await ctx.reply(text, { reply_markup: kb });
+  }
+}
+
+export async function listWorkersCommand(ctx: AppContext): Promise<void> {
+  await renderWorkersList(ctx, false);
+}
+
+/** Клик по кнопке «🗑 {имя}» — удаляет работника и перерисовывает список. */
+export async function onRemoveWorkerCallback(ctx: AppContext): Promise<void> {
+  const id = Number((ctx.match as RegExpMatchArray)?.[1]);
+  const w = await prisma.worker.findUnique({ where: { id } });
+
+  if (!w) {
+    await ctx.answerCallbackQuery({ text: "Уже удалён." });
+    await renderWorkersList(ctx, true);
+    return;
+  }
+  if (w.role === "OWNER") {
+    await ctx.answerCallbackQuery({
+      text: "Нельзя удалить владельца.",
+      show_alert: true,
+    });
+    return;
+  }
+
+  await prisma.worker.delete({ where: { id } });
+  await ctx.answerCallbackQuery({ text: `Удалён: ${w.name}` });
+  await renderWorkersList(ctx, true);
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -291,43 +280,65 @@ export async function addCategoryConversation(
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// /remove_category — inline-кнопки.
+// /list_categories — список категорий + кнопка удаления у каждой.
+// (объединяет бывшие /list_categories и /remove_category)
+// Удаление блокируется, если в категории есть товары.
 // ─────────────────────────────────────────────────────────────────────────────
 
-export async function removeCategoryCommand(ctx: AppContext): Promise<void> {
+async function renderCategoriesList(
+  ctx: AppContext,
+  edit: boolean
+): Promise<void> {
   const cats = await prisma.category.findMany({ orderBy: { name: "asc" } });
 
   if (cats.length === 0) {
-    await ctx.reply("Категорий пока нет.");
+    const text = "Категорий пока нет. Добавь через /add_category.";
+    if (edit) await ctx.editMessageText(text).catch(() => {});
+    else await ctx.reply(text);
     return;
   }
+
+  // Считаем товары в каждой категории, чтобы показать и блокировать удаление непустых.
+  const counts = await prisma.product.groupBy({
+    by: ["categoryId"],
+    _count: { _all: true },
+  });
+  const countMap = new Map(counts.map((c) => [c.categoryId, c._count._all]));
+
+  const lines = cats.map((c) => {
+    const n = countMap.get(c.id) ?? 0;
+    return `• ${c.name}${n > 0 ? ` (${n} ${pluralizeProducts(n)})` : ""}`;
+  });
+  const text =
+    `Категории:\n${lines.join("\n")}\n\n` +
+    `Кнопки ниже — удалить категорию (только пустую).`;
 
   const kb = new InlineKeyboard();
   for (const c of cats) {
-    kb.text(c.name, `rm_cat:${c.id}`).row();
+    kb.text(`🗑 ${c.name}`, `rm_cat:${c.id}`).row();
   }
-  kb.text("Отмена", "rm_cat:cancel");
 
-  await ctx.reply("Какую категорию удалить?", { reply_markup: kb });
+  if (edit) {
+    await ctx.editMessageText(text, { reply_markup: kb }).catch(() => {});
+  } else {
+    await ctx.reply(text, { reply_markup: kb });
+  }
 }
 
+export async function listCategoriesCommand(ctx: AppContext): Promise<void> {
+  await renderCategoriesList(ctx, false);
+}
+
+/** Клик по «🗑 {категория}» — удаляет (если пустая) и перерисовывает список. */
 export async function onRemoveCategoryCallback(
   ctx: AppContext
 ): Promise<void> {
-  const arg = (ctx.match as RegExpMatchArray)?.[1];
-
-  if (arg === "cancel") {
-    await ctx.editMessageText("Отменено.");
-    await ctx.answerCallbackQuery();
-    return;
-  }
-
-  const id = Number(arg);
+  const id = Number((ctx.match as RegExpMatchArray)?.[1]);
   const cat = await prisma.category.findUnique({ where: { id } });
 
   if (!cat) {
-    await ctx.editMessageText("Категория уже удалена.");
-    await ctx.answerCallbackQuery();
+    await ctx.answerCallbackQuery({ text: "Уже удалена." });
+    await renderCategoriesList(ctx, true);
     return;
   }
 
@@ -335,29 +346,16 @@ export async function onRemoveCategoryCallback(
     where: { categoryId: id },
   });
   if (productCount > 0) {
-    await ctx.editMessageText(
-      `Нельзя удалить, в категории «${cat.name}» ${productCount} ${pluralizeProducts(productCount)}.`
-    );
-    await ctx.answerCallbackQuery();
+    await ctx.answerCallbackQuery({
+      text: `Нельзя: в «${cat.name}» ${productCount} ${pluralizeProducts(productCount)}.`,
+      show_alert: true,
+    });
     return;
   }
 
   await prisma.category.delete({ where: { id } });
-  await ctx.editMessageText(`Категория «${cat.name}» удалена.`);
-  await ctx.answerCallbackQuery();
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// /list_categories
-// ─────────────────────────────────────────────────────────────────────────────
-
-export async function listCategoriesCommand(ctx: AppContext): Promise<void> {
-  const cats = await prisma.category.findMany({ orderBy: { name: "asc" } });
-  if (cats.length === 0) {
-    await ctx.reply("Категорий пока нет.");
-    return;
-  }
-  await ctx.reply(cats.map((c) => c.name).join("\n"));
+  await ctx.answerCallbackQuery({ text: `Удалена: ${cat.name}` });
+  await renderCategoriesList(ctx, true);
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -372,78 +370,10 @@ function pluralizeProducts(n: number): string {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// /delete_product <id> — полное удаление товара (БД, Supabase, канал, чат).
+// Полное удаление товара. Команда /delete_product убрана — удаление теперь
+// через /products → карточка товара → «🗑 Удалить». Здесь только переиспользуемая
+// функция deleteProductById (вызывается из handlers/products.ts).
 // ─────────────────────────────────────────────────────────────────────────────
-//
-// Используется в основном для уборки «осиротевших» товаров — тех, что были
-// созданы до Этапа 6 (когда добавился служебный чат) и не имеют
-// serviceMessageId, поэтому нет кнопки «❌ Нет в наличии».
-//
-// В отличие от SOLD-флоу (просто прячет с сайта, оставляет в канале),
-// эта команда удаляет товар БЕЗВОЗВРАТНО.
-export async function deleteProductCommand(ctx: AppContext): Promise<void> {
-  // Принимает либо число (id), либо текст (description — точное совпадение).
-  // Примеры:
-  //   /delete_product 7
-  //   /delete_product Cardigan Jenasis
-  const raw = ctx.message?.text?.replace(/^\/delete_product(@\w+)?\s*/, "") ?? "";
-  const arg = raw.trim();
-  if (!arg) {
-    await ctx.reply(
-      "Использование:\n" +
-        "  /delete_product <id>   — удалить по номеру (напр. /delete_product 7)\n" +
-        "  /delete_product <название>   — удалить по точному названию\n" +
-        "                                 (напр. /delete_product Cardigan Jenasis)"
-    );
-    return;
-  }
-
-  // Сначала пробуем как id (целое число)
-  const asId = Number(arg);
-  const looksLikeId = /^\d+$/.test(arg) && Number.isInteger(asId) && asId > 0;
-
-  let product = null;
-  if (looksLikeId) {
-    product = await prisma.product.findUnique({
-      where: { id: asId },
-      include: { category: true, photos: true },
-    });
-    if (!product) {
-      await ctx.reply(`Товар №${asId} не найден.`);
-      return;
-    }
-  } else {
-    // Поиск по description (точное совпадение)
-    const matches = await prisma.product.findMany({
-      where: { description: arg },
-      include: { category: true, photos: true },
-    });
-    if (matches.length === 0) {
-      await ctx.reply(
-        `Товар с названием «${arg}» не найден.\n` +
-          `Можно попробовать удалить по id: /delete_product <number>.`
-      );
-      return;
-    }
-    if (matches.length > 1) {
-      const list = matches
-        .map((p) => `  • №${p.id} (${p.category.name}, ${p.price} ₽)`)
-        .join("\n");
-      await ctx.reply(
-        `Найдено несколько товаров «${arg}»:\n${list}\n\n` +
-          `Уточни — удали по id: /delete_product <number>.`
-      );
-      return;
-    }
-    product = matches[0];
-  }
-
-  await ctx.reply(
-    `Удаляю товар №${product.id} (${product.category.name}, ${product.price} ₽)...`
-  );
-  const result = await deleteProductById(ctx.api, product.id);
-  await ctx.reply(result);
-}
 
 /**
  * Полностью удаляет товар: пост в канале, сообщения в служебном чате, файлы
