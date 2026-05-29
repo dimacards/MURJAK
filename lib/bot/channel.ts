@@ -2,7 +2,7 @@ import type { Api } from "grammy";
 import type { Category, Photo, Product } from "@prisma/client";
 import { prisma } from "../db";
 import config from "../config";
-import { isNotModifiedError } from "./telegram-utils";
+import { isIgnorableEditError } from "./telegram-utils";
 
 const CHANNEL_ID = process.env.CHANNEL_ID;
 
@@ -179,7 +179,7 @@ export async function updateChannelCaption(
     })
     .catch((e) => {
       // Если текст уже актуален — Telegram возвращает 400, это не ошибка для нас.
-      if (isNotModifiedError(e)) return;
+      if (isIgnorableEditError(e)) return;
       throw e;
     });
 }
@@ -225,7 +225,7 @@ export async function editChannelMedia(
         ...(isFirst ? { caption, parse_mode: CAPTION_PARSE_MODE } : {}),
       })
       .catch((e) => {
-        if (isNotModifiedError(e)) return;
+        if (isIgnorableEditError(e)) return;
         throw e;
       });
   }
@@ -285,7 +285,7 @@ export async function markChannelAsSold(
       parse_mode: CAPTION_PARSE_MODE,
     })
     .catch((e) => {
-      if (isNotModifiedError(e)) return;
+      if (isIgnorableEditError(e)) return;
       throw e;
     });
 }

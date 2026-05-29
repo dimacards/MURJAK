@@ -47,6 +47,30 @@ if (!token) {
 
 export const bot = new Bot<AppContext>(token);
 
+// 0. Глобальный обработчик ошибок.
+//
+// КРИТИЧНО для serverless: без него любая необработанная ошибка в хендлере
+// всплывает в webhookCallback → тот отдаёт HTTP 500 → Telegram считает
+// доставку неудачной и РЕТРАИТ апдейт снова и снова, забивая очередь
+// (особенно болезненно при max_connections=1). Типичный источник —
+// editMessageCaption/editMessageText на сообщении, которое удалили вручную
+// («message to edit not found»).
+//
+// Здесь мы ошибку логируем, по возможности гасим спиннер на кнопке
+// (answerCallbackQuery) и НЕ пробрасываем — webhook отвечает 200, ретраев нет.
+bot.catch((err) => {
+  const ctx = err.ctx;
+  console.error(
+    `[bot.catch] ошибка на update ${ctx.update.update_id}:`,
+    err.error
+  );
+  if (ctx.callbackQuery) {
+    ctx
+      .answerCallbackQuery({ text: "Что-то пошло не так, попробуй ещё раз." })
+      .catch(() => {});
+  }
+});
+
 // 1. Whitelist: отсекаем чужих, кладём worker в ctx.worker.
 bot.use(whitelist);
 

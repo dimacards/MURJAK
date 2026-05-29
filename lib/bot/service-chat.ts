@@ -2,7 +2,7 @@ import { InlineKeyboard, type Api } from "grammy";
 import type { Category, Photo, Product } from "@prisma/client";
 import { buildServiceCaption, CAPTION_PARSE_MODE, SOLD_MARK } from "./channel";
 import { prisma } from "../db";
-import { isNotModifiedError } from "./telegram-utils";
+import { isIgnorableEditError } from "./telegram-utils";
 
 const SERVICE_CHAT_ID = process.env.SERVICE_CHAT_ID;
 
@@ -101,7 +101,7 @@ export async function setServiceEditLock(
       { reply_markup: { inline_keyboard: [] } } // явно убираем клавиатуру
     )
     .catch((e) => {
-      if (isNotModifiedError(e)) return;
+      if (isIgnorableEditError(e)) return;
       throw e;
     });
 }
@@ -126,7 +126,7 @@ export async function updateServiceCaption(
       parse_mode: CAPTION_PARSE_MODE,
     })
     .catch((e) => {
-      if (isNotModifiedError(e)) return;
+      if (isIgnorableEditError(e)) return;
       throw e;
     });
 }
@@ -154,7 +154,7 @@ export async function updateServiceMessage(
       { reply_markup: buildServiceControlKeyboard(product.id) }
     )
     .catch((e) => {
-      if (isNotModifiedError(e)) return;
+      if (isIgnorableEditError(e)) return;
       throw e;
     });
 }
@@ -211,7 +211,7 @@ export async function editServiceMedia(
         ...(isFirst ? { caption, parse_mode: CAPTION_PARSE_MODE } : {}),
       })
       .catch((e) => {
-        if (isNotModifiedError(e)) return;
+        if (isIgnorableEditError(e)) return;
         throw e;
       });
   }
@@ -290,7 +290,7 @@ export async function markServiceAsSold(
       { reply_markup: buildSoldServiceKeyboard(product.id) }
     )
     .catch((e) => {
-      if (isNotModifiedError(e)) return;
+      if (isIgnorableEditError(e)) return;
       throw e;
     });
 }
