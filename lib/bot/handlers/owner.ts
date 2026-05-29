@@ -76,6 +76,11 @@ export async function addWorkerConversation(
         );
         return;
       }
+      // Контакт выбран — убираем reply-клавиатуру «Поделиться контактом»,
+      // чтобы она не «висела» внизу до конца диалога.
+      await next.reply(`Выбран: ${sharedName ?? "контакт"}.`, {
+        reply_markup: { remove_keyboard: true },
+      });
       break pickWorker;
     }
 
@@ -149,7 +154,7 @@ export async function addWorkerConversation(
   await confirm.editMessageReplyMarkup().catch(() => {});
 
   if (confirm.callbackQuery.data === "aw_cancel") {
-    await ctx.reply("Отменено.");
+    await ctx.reply("Отменено.", { reply_markup: { remove_keyboard: true } });
     return;
   }
 
@@ -159,7 +164,9 @@ export async function addWorkerConversation(
     })
   );
 
-  await ctx.reply(`✅ Работник «${name}» добавлен.`);
+  await ctx.reply(`✅ Работник «${name}» добавлен.`, {
+    reply_markup: { remove_keyboard: true },
+  });
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
