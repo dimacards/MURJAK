@@ -15,11 +15,13 @@
   background: var(--color-border);
   overflow: hidden;
   user-select: none;
+  /* touch-action: pan-y — браузер сам берёт вертикальные жесты под скролл,
+     а нам отдаёт только горизонтальные. Снимает «застревание» страницы
+     при попытке вертикально проскроллить, начав палец на фото. */
+  touch-action: pan-y;
 }
 
 .mainImage {
-  width: 100%;
-  height: 100%;
   object-fit: cover;
 }
 
@@ -158,6 +160,7 @@
   width: 100%;
   height: 100%;
   object-fit: cover;
+  display: block;
 }
 
 .empty {

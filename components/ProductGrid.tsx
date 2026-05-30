@@ -9,7 +9,14 @@ import styles from "./ProductGrid.module.css";
  */
 export function ProductGrid({ items }: { items: ProductDto[] }) {
   if (items.length === 0) {
-    return <p className={styles.empty}>Ничего не найдено.</p>;
+    return (
+      <div className={styles.empty}>
+        <p className={styles.emptyTitle}>Ничего не найдено</p>
+        <p className={styles.emptyHint}>
+          Попробуйте изменить запрос или сбросить фильтры.
+        </p>
+      </div>
+    );
   }
 
   return (

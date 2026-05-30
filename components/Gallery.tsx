@@ -1,7 +1,7 @@
-/* eslint-disable @next/next/no-img-element */
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import Image from "next/image";
 import styles from "./Gallery.module.css";
 
 /**
@@ -12,6 +12,9 @@ import styles from "./Gallery.module.css";
  *   • стрелки ←/→ под большим фото (полупрозрачные круги)
  *   • клавиатура: стрелки ←/→ листают
  *   • thumbnails — scroll-snap-x, можно свайпать пальцем на мобилке
+ *   • свайп пальцем по большому фото — листает (touchstart/touchend)
+ *
+ * Изображения — next/image. priority=true на первое фото (LCP товара).
  */
 export function Gallery({
   photos,
@@ -55,17 +58,48 @@ export function Gallery({
     });
   }, [index]);
 
+  // Свайп пальцем по большому фото.
+  //
+  // Логика: на touchstart запоминаем X и Y. На touchend смотрим dx/dy.
+  // Если |dx| > 50px и явно горизонтальный жест (|dx| > |dy|) — листаем.
+  // Иначе игнор — значит это вертикальный скролл страницы.
+  const touchRef = useRef<{ x: number; y: number } | null>(null);
+  const onTouchStart = (e: React.TouchEvent) => {
+    const t = e.touches[0];
+    touchRef.current = { x: t.clientX, y: t.clientY };
+  };
+  const onTouchEnd = (e: React.TouchEvent) => {
+    const start = touchRef.current;
+    if (!start) return;
+    touchRef.current = null;
+    const t = e.changedTouches[0];
+    const dx = t.clientX - start.x;
+    const dy = t.clientY - start.y;
+    if (Math.abs(dx) < 50) return;
+    if (Math.abs(dx) < Math.abs(dy)) return; // вертикальный жест
+    if (dx > 0) goPrev();
+    else goNext();
+  };
+
   if (total === 0) {
     return <div className={styles.empty}>Нет фотографий</div>;
   }
 
   return (
     <div className={styles.root}>
-      <div className={styles.main}>
-        <img
+      <div
+        className={styles.main}
+        onTouchStart={onTouchStart}
+        onTouchEnd={onTouchEnd}
+      >
+        <Image
           src={photos[index]}
           alt={`${title} — фото ${index + 1} из ${total}`}
+          fill
+          // галерея на десктопе ~720px (3fr из 1200), на мобилке во всю ширину
+          sizes="(min-width: 768px) 720px, 100vw"
           className={styles.mainImage}
+          priority={index === 0}
         />
 
         {total > 1 && (
@@ -107,11 +141,13 @@ export function Gallery({
               aria-label={`Фото ${i + 1}`}
               aria-current={i === index}
             >
-              <img
+              <Image
                 src={src}
                 alt=""
+                width={80}
+                height={80}
+                sizes="80px"
                 className={styles.thumbImage}
-                loading="lazy"
               />
             </button>
           ))}

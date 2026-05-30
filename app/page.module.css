@@ -20,11 +20,42 @@
   color: var(--color-muted);
 }
 
-.error {
-  padding: var(--space-md);
-  background: #fff4f4;
-  color: #c00;
-  border-radius: var(--radius-sm);
-  margin-bottom: var(--space-md);
+.errorState {
+  padding: var(--space-2xl) var(--space-md);
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-sm);
+}
+
+.errorTitle {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+.errorDetail {
+  font-size: 13px;
+  color: var(--color-muted);
+  /* длинная техническая ошибка может вылезти */
+  overflow-wrap: anywhere;
+  max-width: 480px;
+}
+
+.errorRetry {
+  margin-top: var(--space-xs);
+  padding: 10px 20px;
+  background: var(--color-accent);
+  color: var(--color-accent-text);
   font-size: 14px;
+  font-weight: 500;
+  border-radius: var(--radius-sm);
+  transition: background 0.15s ease;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .errorRetry:hover {
+    background: var(--color-accent-hover);
+  }
 }
