@@ -1,18 +1,19 @@
-/* eslint-disable @next/next/no-img-element */
 import Link from "next/link";
 import { headers } from "next/headers";
-import config from "@/lib/config";
 import type { ProductDto } from "@/lib/api-types";
+import { Logo } from "@/components/Logo";
+import { Footer } from "@/components/Footer";
+import { Gallery } from "@/components/Gallery";
+import { ProductDetails } from "@/components/ProductDetails";
+import styles from "./page.module.css";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 /**
  * Серверный fetch к собственному /api/products/[id]. Для абсолютного URL
- * берём NEXT_PUBLIC_SITE_URL, либо реконструируем из request-headers
- * (когда переменная не выставлена, что бывает в dev).
- *
- * Возвращает null если 404 (нет или продан) — компонент покажет «Не найден».
+ * берём NEXT_PUBLIC_SITE_URL, либо реконструируем из request-headers.
+ * Возвращает null если 404 (нет или продан).
  */
 async function fetchProduct(id: string): Promise<ProductDto | null> {
   let baseUrl = process.env.NEXT_PUBLIC_SITE_URL?.replace(/\/$/, "");
@@ -44,89 +45,52 @@ export default async function ProductPage({
 
   if (!product) {
     return (
-      <main style={{ padding: 16, fontFamily: "sans-serif" }}>
-        <p>
-          <Link href="/">← к списку</Link>
-        </p>
-        <h1>Товар не найден или продан.</h1>
-      </main>
+      <>
+        <header className={styles.header}>
+          <div className="container">
+            <Logo />
+          </div>
+        </header>
+        <main className={`container ${styles.notFound}`}>
+          <h1 className={styles.notFoundTitle}>
+            Товар не найден или продан
+          </h1>
+          <Link href="/" className={styles.backLink}>
+            ← Вернуться в каталог
+          </Link>
+        </main>
+        <Footer />
+      </>
     );
   }
 
   return (
-    <main style={{ padding: 16, fontFamily: "sans-serif", maxWidth: 720 }}>
-      <p>
-        <Link href="/">← к списку</Link>
-      </p>
+    <>
+      <header className={styles.header}>
+        <div className="container">
+          <Logo />
+        </div>
+      </header>
 
-      <h1>{product.description || product.category}</h1>
-      {product.description && (
-        <p style={{ color: "#666", marginTop: -8 }}>
-          Категория: {product.category}
-        </p>
-      )}
+      <main className={`container ${styles.main}`}>
+        <Link href="/" className={styles.back}>
+          ← К каталогу
+        </Link>
 
-      <div style={{ display: "grid", gap: 8, marginBottom: 16 }}>
-        {product.photos.map((url, i) => (
-          <img
-            key={i}
-            src={url}
-            alt={`Фото ${i + 1}`}
-            style={{ display: "block", maxWidth: "100%", height: "auto" }}
-          />
-        ))}
-      </div>
+        <div className={styles.layout}>
+          <div className={styles.galleryCol}>
+            <Gallery
+              photos={product.photos}
+              title={product.description || product.category}
+            />
+          </div>
+          <div className={styles.detailsCol}>
+            <ProductDetails product={product} />
+          </div>
+        </div>
+      </main>
 
-      <p>Размер: {product.size}</p>
-      <p>Состояние: {product.condition}/10</p>
-      <p>
-        Цена:{" "}
-        <b>
-          {product.price} {config.currency}
-        </b>
-      </p>
-
-      {(() => {
-        // Deep link на Telegram-чат продавца с pre-filled сообщением.
-        // Telegram распознаёт ?text= и кладёт содержимое в поле ввода чата.
-        //
-        // НЕ используем target="_blank" — на iOS Safari это вызывает баг:
-        // новая вкладка открывается на t.me/, который через Universal Links
-        // открывает Telegram-приложение. При возврате в Safari та же вкладка
-        // снова пытается передать управление приложению — получается петля
-        // «This page couldn't load». Без _blank iOS открывает Telegram прямо
-        // из текущей вкладки, после возврата кнопка «назад» возвращает на
-        // страницу товара.
-        const title = product.description || product.category;
-        const message =
-          `Здравствуйте! Интересует товар №${product.id} ` +
-          `«${title}» (размер ${product.size}, ` +
-          `${product.price} ${config.currency})`;
-        const href = `https://t.me/${config.sellerUsername}?text=${encodeURIComponent(message)}`;
-
-        return (
-          <p style={{ marginTop: 16 }}>
-            <a
-              href={href}
-              rel="noopener"
-              style={{
-                display: "inline-block",
-                padding: "8px 16px",
-                background: "#229ED9",
-                color: "white",
-                textDecoration: "none",
-                borderRadius: 4,
-              }}
-            >
-              ✈️ Купить в Telegram
-            </a>
-          </p>
-        );
-      })()}
-
-      <p style={{ marginTop: 8, color: "#666", fontSize: 14 }}>
-        При нажатии вы перейдёте в Telegram для оформления покупки.
-      </p>
-    </main>
+      <Footer />
+    </>
   );
 }

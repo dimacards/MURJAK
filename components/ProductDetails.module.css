@@ -1,0 +1,90 @@
+.root {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-lg);
+}
+
+.title {
+  font-size: 22px;
+  font-weight: 600;
+  line-height: 1.25;
+  letter-spacing: -0.01em;
+  /* длинное слово без пробелов (URL, типа артикула) не должно
+     раздувать колонку — переносим в любом месте */
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+@media (min-width: 480px) {
+  .title {
+    font-size: 24px;
+  }
+}
+
+@media (min-width: 768px) {
+  .title {
+    font-size: 28px;
+  }
+}
+
+.price {
+  font-size: 22px;
+  font-weight: 500;
+}
+
+@media (min-width: 768px) {
+  .price {
+    font-size: 24px;
+  }
+}
+
+.specs {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  margin: 0;
+  border-top: 1px solid var(--color-border);
+}
+
+.specRow {
+  display: grid;
+  /* на мобилке колонка-метка чуть уже, чтобы значению хватало места */
+  grid-template-columns: 100px 1fr;
+  gap: var(--space-md);
+  padding: 12px 0;
+  border-bottom: 1px solid var(--color-border);
+  font-size: 14px;
+  min-width: 0;
+}
+
+@media (min-width: 480px) {
+  .specRow {
+    grid-template-columns: 130px 1fr;
+  }
+}
+
+.specLabel {
+  color: var(--color-muted);
+  min-width: 0;
+}
+
+.specValue {
+  color: var(--color-text);
+  margin: 0;
+  min-width: 0;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.buyWrap {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+  margin-top: var(--space-sm);
+}
+
+.help {
+  font-size: 12px;
+  color: var(--color-muted);
+  text-align: center;
+}
