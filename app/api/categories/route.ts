@@ -19,7 +19,12 @@ export async function GET() {
     const body: CategoryDto[] = categories;
     return Response.json(body);
   } catch (e) {
-    console.error("GET /api/categories failed:", e);
-    return Response.json({ error: "Internal error" }, { status: 500 });
+    const msg = e instanceof Error ? e.message : String(e);
+    const code = (e as { code?: string })?.code;
+    console.error("GET /api/categories failed:", code, msg, e);
+    return Response.json(
+      { error: "Internal error", code, message: msg },
+      { status: 500 }
+    );
   }
 }

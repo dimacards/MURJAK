@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { headers } from "next/headers";
+import { prisma } from "@/lib/db";
 import type { ProductDto } from "@/lib/api-types";
 import { Logo } from "@/components/Logo";
 import { Footer } from "@/components/Footer";
@@ -11,28 +11,39 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 /**
- * Серверный fetch к собственному /api/products/[id]. Для абсолютного URL
- * берём NEXT_PUBLIC_SITE_URL, либо реконструируем из request-headers.
- * Возвращает null если 404 (нет или продан).
+ * Загружает товар напрямую через Prisma — без сетевого хопа в собственный
+ * /api/products/[id]. На Vercel self-fetch — это вторая cold-start'ующая
+ * функция в той же серверной операции: лишняя точка отказа и расход бюджета.
+ *
+ * Возвращает null если:
+ *   - id не валидный
+ *   - товара нет
+ *   - товар продан (SOLD скрываем с витрины)
  */
-async function fetchProduct(id: string): Promise<ProductDto | null> {
-  let baseUrl = process.env.NEXT_PUBLIC_SITE_URL?.replace(/\/$/, "");
-  if (!baseUrl) {
-    const h = await headers();
-    const host = h.get("host");
-    const proto = h.get("x-forwarded-proto") ?? "http";
-    if (host) baseUrl = `${proto}://${host}`;
-    else baseUrl = "http://localhost:3000";
-  }
+async function fetchProduct(idStr: string): Promise<ProductDto | null> {
+  const id = Number(idStr);
+  if (!Number.isInteger(id) || id < 1) return null;
 
-  const res = await fetch(`${baseUrl}/api/products/${id}`, {
-    cache: "no-store",
+  const product = await prisma.product.findUnique({
+    where: { id },
+    include: {
+      category: true,
+      photos: { orderBy: { order: "asc" } },
+    },
   });
-  if (res.status === 404) return null;
-  if (!res.ok) {
-    throw new Error(`Не удалось загрузить товар: HTTP ${res.status}`);
-  }
-  return (await res.json()) as ProductDto;
+
+  if (!product || product.status === "SOLD") return null;
+
+  return {
+    id: product.id,
+    category: product.category.name,
+    description: product.description,
+    size: product.size,
+    condition: product.condition,
+    price: product.price,
+    photos: product.photos.map((p) => p.publicUrl),
+    createdAt: product.createdAt.toISOString(),
+  };
 }
 
 export default async function ProductPage({
