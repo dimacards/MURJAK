@@ -30,6 +30,10 @@ import {
   editProductConversation,
   type EditField,
 } from "./conversations/edit-product";
+import {
+  importProductConversation,
+  type ImportEntryArgs,
+} from "./conversations/import-product";
 import { onEditClick, onEditCancel } from "./handlers/edit";
 import { onSoldClick, onRestockClick } from "./handlers/sold";
 import {
@@ -122,6 +126,9 @@ bot.use(createConversation(addProductConversation, "addProductConversation"));
 bot.use(
   createConversation(editProductConversation, "editProductConversation")
 );
+bot.use(
+  createConversation(importProductConversation, "importProductConversation")
+);
 
 // 3. Команды (все требуют privateOnly — работают только в ЛС).
 bot.command("start", privateOnly, startHandler);
@@ -192,3 +199,59 @@ bot.callbackQuery(/^prestk:(\d+)$/, onProductRestock);
 bot.callbackQuery(/^pdel:(\d+)$/, onProductDeletePrompt);
 bot.callbackQuery(/^pdely:(\d+)$/, onProductDeleteConfirm);
 bot.callbackQuery(/^pdeln$/, onProductDeleteCancel);
+
+// 7. Импорт уже опубликованных постов из канала.
+//
+// Юзер пересылает пост (фото или альбом) из нашего канала в ЛС боту.
+// Если перессылка из НАШЕГО канала — стартуем importProductConversation,
+// прокинув file_id, caption и оригинальный message_id. Дальше conversation
+// сам собирает остальные фото альбома и проводит импорт.
+//
+// Этот handler ловит только когда юзер НЕ в активной conversation
+// (иначе сообщение уйдёт в неё). Чтобы /add_product не сломался — фото
+// внутри него попадают в add-product-conversation, а не сюда.
+bot.on("message:photo", privateOnly, async (ctx) => {
+  const fwd = ctx.message.forward_origin;
+  if (!fwd || fwd.type !== "channel") {
+    // Не из канала — игнорируем. Не отвечаем чтобы не спамить.
+    return;
+  }
+
+  // Проверка: переслано именно из нашего канала.
+  // CHANNEL_ID может быть username без @ или числовой chat_id.
+  const channelId = process.env.CHANNEL_ID;
+  if (!channelId) {
+    await ctx.reply(
+      "Импорт недоступен: CHANNEL_ID не задан в настройках бота."
+    );
+    return;
+  }
+
+  const fwdChat = fwd.chat;
+  const isOurChannel =
+    String(fwdChat.id) === channelId ||
+    String(fwdChat.id) === channelId.replace(/^@/, "") ||
+    ("username" in fwdChat &&
+      fwdChat.username === channelId.replace(/^@/, ""));
+  if (!isOurChannel) {
+    await ctx.reply(
+      "Бот принимает к импорту только посты из нашего канала. " +
+        "Этот пост из другого канала — импорт невозможен."
+    );
+    return;
+  }
+
+  // Берём самую крупную версию фото.
+  const sizes = ctx.message.photo;
+  const best = sizes[sizes.length - 1];
+
+  const args: ImportEntryArgs = {
+    workerId: ctx.worker.id,
+    firstFileId: best.file_id,
+    caption: ctx.message.caption ?? undefined,
+    originalMessageId: fwd.message_id,
+    mediaGroupId: ctx.message.media_group_id,
+  };
+
+  await ctx.conversation.enter("importProductConversation", args);
+});
