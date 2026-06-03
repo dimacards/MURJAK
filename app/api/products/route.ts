@@ -88,8 +88,12 @@ export async function GET(req: Request) {
     const skip = (page - 1) * limit;
 
     // ── where ──────────────────────────────────────────────────────────────
+    // visibleOnSite=true — товар разрешён к показу на сайте. Если работник
+    // при /add_product снял галку «На сайте», visibleOnSite=false и сюда
+    // такой товар не попадает.
     const where: Prisma.ProductWhereInput = {
       status: "ACTIVE",
+      visibleOnSite: true,
       ...(categoryId !== undefined && { categoryId }),
       ...(size !== undefined && { size }),
       ...((conditionMin !== undefined || conditionMax !== undefined) && {

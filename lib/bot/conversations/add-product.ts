@@ -391,26 +391,67 @@ export async function addProductConversation(
     }))
   );
 
-  // Отдельное сообщение с кнопками (на медиа-альбоме нельзя)
-  await ctx.reply("Опубликовать?", {
-    reply_markup: new InlineKeyboard()
+  // ── Шаг 6.5: выбор источников (канал / сайт) ─────────────────────────────
+  // По умолчанию оба включены. Юзер может снять любую галку клик'ом на чек-бокс,
+  // прежде чем нажать «Опубликовать». Хотя бы один должен остаться включён.
+  let publishToChannelFlag = true;
+  let publishToSiteFlag = true;
+
+  function destinationsKeyboard(): InlineKeyboard {
+    const channelMark = publishToChannelFlag ? "☑️" : "☐";
+    const siteMark = publishToSiteFlag ? "☑️" : "☐";
+    return new InlineKeyboard()
+      .text(`${channelMark} В канал`, "ap_dest:channel")
+      .text(`${siteMark} На сайт`, "ap_dest:site")
+      .row()
       .text("✅ Опубликовать", "ap_publish")
-      .text("❌ Отмена", "ap_cancel"),
+      .text("❌ Отмена", "ap_cancel");
+  }
+
+  const destPromptText =
+    "Куда выкладывать? Сними галку, чтобы отключить источник:";
+  const destMsg = await ctx.reply(destPromptText, {
+    reply_markup: destinationsKeyboard(),
   });
 
   while (true) {
     const next = await conversation.waitForCallbackQuery(
-      /^ap_(publish|cancel)$/
+      /^ap_(publish|cancel|dest:(?:channel|site))$/
     );
     const data = next.callbackQuery.data;
+
     if (data === "ap_cancel") {
       await next.answerCallbackQuery();
-      // Убираем кнопки, чтобы повторный клик был невозможен.
       await next.editMessageReplyMarkup().catch(() => {});
       await ctx.reply("Отменено.");
       return;
     }
+
+    if (data === "ap_dest:channel") {
+      publishToChannelFlag = !publishToChannelFlag;
+      await next.answerCallbackQuery();
+      await next.editMessageReplyMarkup({
+        reply_markup: destinationsKeyboard(),
+      }).catch(() => {});
+      continue;
+    }
+    if (data === "ap_dest:site") {
+      publishToSiteFlag = !publishToSiteFlag;
+      await next.answerCallbackQuery();
+      await next.editMessageReplyMarkup({
+        reply_markup: destinationsKeyboard(),
+      }).catch(() => {});
+      continue;
+    }
+
     if (data === "ap_publish") {
+      if (!publishToChannelFlag && !publishToSiteFlag) {
+        await next.answerCallbackQuery({
+          text: "Выбери хотя бы один источник.",
+          show_alert: true,
+        });
+        continue;
+      }
       await next.answerCallbackQuery({ text: "Сохраняю..." });
       // Защита от дабл-тапа: сразу убираем inline-кнопки у превью.
       // Повторный клик уже не на чем сделать → дубля публикации не будет.
@@ -418,6 +459,8 @@ export async function addProductConversation(
       break;
     }
   }
+  // void чтобы не было unused-var, destMsg.id может понадобиться позже
+  void destMsg;
 
   // ── Шаг 7: загрузка в Supabase + сохранение в БД ──────────────────────────
   const progress = await ctx.reply(
@@ -464,7 +507,9 @@ export async function addProductConversation(
     return;
   }
 
-  // Сохраняем Product + Photo в одной транзакции
+  // Сохраняем Product + Photo. visibleOnSite=publishToSiteFlag —
+  // если работник снял галку «На сайт», товар не будет показан
+  // на витрине (API фильтрует по visibleOnSite=true).
   const product = await conversation.external(() =>
     prisma.product.create({
       data: {
@@ -474,6 +519,7 @@ export async function addProductConversation(
         condition,
         price,
         status: "ACTIVE",
+        visibleOnSite: publishToSiteFlag,
         channelMessageIds: [],
         serviceMessageId: null,
         serviceMediaMessageIds: [],
@@ -491,32 +537,36 @@ export async function addProductConversation(
     })
   );
 
-  // ── Шаг 8: публикация в канал ─────────────────────────────────────────────
-  let channelMessageIds: number[];
-  try {
-    channelMessageIds = await publishToChannel(
-      ctx.api,
-      product,
-      product.photos
-    );
-  } catch (e) {
-    console.error("publishToChannel failed:", e);
-    await ctx.reply(
-      `Товар сохранён в БД (id=${product.id}), но не удалось опубликовать в канал:\n` +
-        `${e instanceof Error ? e.message : String(e)}\n\n` +
-        `Проверь, что бот добавлен в канал как админ с правом постинга.`
-    );
-    return;
-  }
+  // ── Шаг 8: публикация в канал (если выбрано) ──────────────────────────────
+  if (publishToChannelFlag) {
+    let channelMessageIds: number[];
+    try {
+      channelMessageIds = await publishToChannel(
+        ctx.api,
+        product,
+        product.photos
+      );
+    } catch (e) {
+      console.error("publishToChannel failed:", e);
+      await ctx.reply(
+        `Товар сохранён в БД (id=${product.id}), но не удалось опубликовать в канал:\n` +
+          `${e instanceof Error ? e.message : String(e)}\n\n` +
+          `Проверь, что бот добавлен в канал как админ с правом постинга.`
+      );
+      return;
+    }
 
-  // Сохраняем message_id-ы канала в БД — пригодятся для последующих
-  // editCaption / delete / SOLD-операций (Этапы 7–8).
-  await conversation.external(() =>
-    prisma.product.update({
-      where: { id: product.id },
-      data: { channelMessageIds },
-    })
-  );
+    // Сохраняем message_id-ы канала в БД — пригодятся для последующих
+    // editCaption / delete / SOLD-операций.
+    await conversation.external(() =>
+      prisma.product.update({
+        where: { id: product.id },
+        data: { channelMessageIds },
+      })
+    );
+  }
+  // Если publishToChannelFlag=false, channelMessageIds остаётся пустым
+  // массивом (как создали). Канал не трогаем вообще.
 
   // ── Шаг 9: копия в служебный чат (ОПЦИОНАЛЬНО) ────────────────────────────
   // Если SERVICE_CHAT_ID не задан в .env — пропускаем. Управление товаром
@@ -549,13 +599,17 @@ export async function addProductConversation(
     }
   }
 
-  const channelMention = config.channelUsername
-    ? `@${config.channelUsername}`
-    : "канале";
+  const destinationsList: string[] = [];
+  if (publishToChannelFlag) {
+    destinationsList.push(
+      config.channelUsername ? `@${config.channelUsername}` : "канал"
+    );
+  }
+  if (publishToSiteFlag) destinationsList.push("сайт");
+  // если оба флага false мы бы вышли раньше, до сюда не дойдём
+  const where = destinationsList.join(" и ");
   const manageHint = serviceChatEnabled
     ? "Управляй кнопками в служебном чате или через /products."
     : "Управлять товаром можно через /products.";
-  await ctx.reply(
-    `✅ Товар опубликован в ${channelMention}. ${manageHint}`
-  );
+  await ctx.reply(`✅ Товар добавлен (${where}). ${manageHint}`);
 }

@@ -31,7 +31,9 @@ export async function GET(
       },
     });
 
-    if (!product || product.status === "SOLD") {
+    // 404 если: товара нет / он SOLD / у него снята visibleOnSite
+    // (товар существует только в канале, на сайте скрыт).
+    if (!product || product.status === "SOLD" || !product.visibleOnSite) {
       return Response.json({ error: "Not found" }, { status: 404 });
     }
 

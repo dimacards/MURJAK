@@ -32,7 +32,9 @@ async function fetchProduct(idStr: string): Promise<ProductDto | null> {
     },
   });
 
-  if (!product || product.status === "SOLD") return null;
+  // Скрываем со страницы: продан или вручную убран с сайта в /add_product.
+  if (!product || product.status === "SOLD" || !product.visibleOnSite)
+    return null;
 
   return {
     id: product.id,

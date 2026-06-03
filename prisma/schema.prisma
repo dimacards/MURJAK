@@ -58,7 +58,8 @@ model Product {
   condition         Int           // 1..10
   price             Int           // рубли
   status            ProductStatus @default(ACTIVE)
-  channelMessageIds      Int[]    // message_id-ы постов в канале (альбом = несколько сообщений)
+  visibleOnSite     Boolean       @default(true) // показывать на витрине сайта. При false — товар хранится в БД, может быть в канале, но на сайте скрыт. Управляется при /add_product.
+  channelMessageIds      Int[]    // message_id-ы постов в канале (альбом = несколько сообщений). Пустой массив = в канал не публиковали.
   serviceMessageId       Int?     // message_id текстового сообщения с кнопками «Редактировать»/«Нет в наличии» в служебном чате
   serviceMediaMessageIds Int[]    // message_id-ы медиа-альбома в служебном чате (для пересоздания при смене фото)
   createdById       Int
