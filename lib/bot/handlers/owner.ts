@@ -2,7 +2,6 @@ import { InlineKeyboard, Keyboard } from "grammy";
 import { prisma } from "../../db";
 import { supabase, SUPABASE_BUCKET } from "../../supabase";
 import { deleteChannelPost } from "../channel";
-import { deleteServicePost } from "../service-chat";
 import type { AppContext, AppConversation } from "../types";
 
 // request_id для кнопки RequestUsers в /add_worker — нужен для матчинга
@@ -558,18 +557,7 @@ export async function deleteProductById(
       console.warn("deleteChannelPost in deleteProductById:", e);
     }
   }
-  // 2. Служебный чат.
-  if (
-    product.serviceMessageId !== null ||
-    product.serviceMediaMessageIds.length > 0
-  ) {
-    try {
-      await deleteServicePost(api, product);
-    } catch (e) {
-      console.warn("deleteServicePost in deleteProductById:", e);
-    }
-  }
-  // 3. Supabase Storage.
+  // 2. Supabase Storage.
   if (product.photos.length > 0) {
     const paths = product.photos.map((p) => p.storagePath);
     const { error } = await supabase.storage
@@ -577,7 +565,7 @@ export async function deleteProductById(
       .remove(paths);
     if (error) console.warn("supabase remove in deleteProductById:", error);
   }
-  // 4. БД.
+  // 3. БД.
   await prisma.product.delete({ where: { id: product.id } });
 
   return `✅ Товар №${product.id} удалён полностью.`;

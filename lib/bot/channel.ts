@@ -301,3 +301,70 @@ export async function restoreChannelFromSold(
 ): Promise<void> {
   return updateChannelCaption(api, product);
 }
+
+/**
+ * Удаляет существующий пост в канале и публикует его заново (тем же ботом).
+ *
+ * Это «тяжёлая» альтернатива editMessageCaption / editMessageMedia. Нужна
+ * когда бот НЕ владелец оригинального поста — после импорта пересланного
+ * поста из канала. Telegram запрещает ботам редактировать чужие сообщения,
+ * поэтому единственный способ обновить опубликованную информацию — удалить
+ * и опубликовать заново.
+ *
+ * Побочный эффект: пост перемещается в самый низ канала (новый message_id),
+ * подписчики получают уведомление о «новом» посте. Это компромисс между
+ * «оставить навсегда устаревший пост» и «обновить ценой нотификации».
+ *
+ * После выполнения:
+ *  - channelMessageIds в БД заменяются на новые id
+ *  - isImported сбрасывается в false (теперь пост наш, дальше можно
+ *    редактировать через editMessageCaption без re-publish)
+ *
+ * @param options.sold — если true, в подписи добавляется метка «❌ ПРОДАНО»
+ */
+export async function republishChannelPost(
+  api: Api,
+  product: ProductForChannel,
+  photos: Photo[],
+  options: { sold?: boolean } = {}
+): Promise<number[]> {
+  if (!CHANNEL_ID) throw new Error("CHANNEL_ID не задан в .env");
+  if (photos.length === 0) throw new Error("Нет фото для перепубликации");
+
+  // 1. Удалить старые сообщения. Best-effort: если бот не админ или сообщений
+  //    уже нет, просто логируем и продолжаем.
+  for (const id of product.channelMessageIds) {
+    await api.deleteMessage(CHANNEL_ID, id).catch((e) => {
+      console.warn(
+        `republishChannelPost deleteMessage failed for ${id}:`,
+        e instanceof Error ? e.message : e
+      );
+    });
+  }
+
+  // 2. Опубликовать заново тем же sendMediaGroup.
+  const caption = options.sold
+    ? buildSoldCaption(product)
+    : buildChannelCaption(product);
+  const sorted = [...photos].sort((a, b) => a.order - b.order);
+
+  const messages = await api.sendMediaGroup(
+    CHANNEL_ID,
+    sorted.map((photo, idx) => ({
+      type: "photo",
+      media: photo.telegramFileId ?? photo.publicUrl,
+      caption: idx === 0 ? caption : undefined,
+      parse_mode: idx === 0 ? CAPTION_PARSE_MODE : undefined,
+    }))
+  );
+
+  const newIds = messages.map((m) => m.message_id);
+
+  // 3. Обновить БД: новые id + сброс флага «импорт».
+  await prisma.product.update({
+    where: { id: product.id },
+    data: { channelMessageIds: newIds, isImported: false },
+  });
+
+  return newIds;
+}

@@ -8,16 +8,9 @@ import {
   deleteChannelPost,
   editChannelMedia,
   publishToChannel,
+  republishChannelPost,
   updateChannelCaption,
 } from "../channel";
-import {
-  deleteServicePost,
-  editServiceMedia,
-  restoreServiceButtons,
-  sendToServiceChat,
-  updateServiceCaption,
-  updateServiceMessage,
-} from "../service-chat";
 
 const MAX_PHOTOS = 10;
 
@@ -35,14 +28,12 @@ type ProductWithRelations = Product & {
 };
 
 /**
- * Главный edit-conversation. Входная точка — клик editfield:{id}:{field} в ЛС
- * (бот отправляет это меню после клика «✏️ Редактировать» в служебном чате).
+ * Главный edit-conversation. Входит из меню /products → «✏️ Редактировать».
  *
  * Любой whitelisted работник может редактировать (нет ownerOnly).
  *
- * MVP-ограничение: если двое одновременно нажмут «Редактировать», оба попадут
- * в свои ЛС и второй может перетереть работу первого. В будущем — поле
- * Product.editingByWorkerId с таймаутом.
+ * MVP-ограничение: если двое одновременно начнут редактировать один и тот
+ * же товар, второй может перетереть работу первого.
  */
 export async function editProductConversation(
   conversation: AppConversation,
@@ -73,56 +64,53 @@ export async function editProductConversation(
   } catch (e) {
     console.error("editProductConversation failed:", e);
     await ctx.reply(
-      `Ошибка: ${e instanceof Error ? e.message : String(e)}\nВозвращаюсь к товару.`
+      `Ошибка: ${e instanceof Error ? e.message : String(e)}`
     );
-    await safeRestore(conversation, ctx, product.id);
   }
 }
 
 // ─── Общие helpers ────────────────────────────────────────────────────────────
 
-async function safeRestore(
-  conversation: AppConversation,
-  ctx: AppContext,
-  productId: number
-): Promise<void> {
-  try {
-    const fresh = await conversation.external(() =>
-      prisma.product.findUnique({
-        where: { id: productId },
-        include: { category: true },
-      })
-    );
-    if (fresh) await restoreServiceButtons(ctx.api, fresh);
-  } catch (e) {
-    console.warn("safeRestore failed:", e instanceof Error ? e.message : e);
-  }
+async function cancel(ctx: AppContext): Promise<void> {
+  await ctx.reply("Отмена.");
 }
 
-async function cancelAndRestore(
-  conversation: AppConversation,
+/**
+ * Применяет изменения к каналу после правки полей (НЕ фото).
+ *
+ * Логика:
+ *  - Обычный (бот-постит) товар: editMessageCaption — быстро, без уведомления
+ *    подписчикам, message_id сохраняются.
+ *  - Импортированный (isImported=true): Telegram запрещает ботам редактировать
+ *    чужие сообщения. Поэтому делаем delete оригинала + repost альбома с
+ *    новой подписью. После repost isImported сбрасывается в false — следующие
+ *    правки этого товара уже идут через быстрый editMessageCaption.
+ */
+async function applyEditToChannel(
   ctx: AppContext,
-  productId: number
-): Promise<void> {
-  await ctx.reply("Отмена. Возвращаюсь к товару.");
-  await safeRestore(conversation, ctx, productId);
+  updated: ProductWithRelations
+): Promise<{ republished: boolean }> {
+  if (updated.channelMessageIds.length === 0) {
+    // Пост в канал не публиковали (например, выкладка только на сайт) — нечего обновлять.
+    return { republished: false };
+  }
+  if (updated.isImported) {
+    await republishChannelPost(ctx.api, updated, updated.photos);
+    return { republished: true };
+  }
+  await updateChannelCaption(ctx.api, updated);
+  return { republished: false };
 }
 
 async function finishEdit(
   ctx: AppContext,
-  updated: ProductWithRelations,
-  noteSuffix: string = ""
+  updated: ProductWithRelations
 ): Promise<void> {
-  // 1. Подпись альбома в канале.
-  await updateChannelCaption(ctx.api, updated);
-  // 2. Подпись альбома в служебном чате (та же подпись).
-  await updateServiceCaption(ctx.api, updated);
-  // 3. Сообщение под альбомом в служебном чате — текст + восстановление кнопок.
-  //    Если только размер/состояние изменились, текст может совпасть с прошлым —
-  //    updateServiceMessage сам проглатывает «message is not modified».
-  await updateServiceMessage(ctx.api, updated);
-
-  await ctx.reply(`Готово. Товар №${updated.id} обновлён.${noteSuffix}`);
+  const { republished } = await applyEditToChannel(ctx, updated);
+  const suffix = republished
+    ? " Пост в канале пересоздан (импортированный товар)."
+    : "";
+  await ctx.reply(`Готово. Товар №${updated.id} обновлён.${suffix}`);
 }
 
 // ─── Категория ────────────────────────────────────────────────────────────────
@@ -137,9 +125,8 @@ async function editCategory(
   );
   if (categories.length === 0) {
     await ctx.reply(
-      "Категорий нет. Попроси владельца добавить через /add_category."
+      "Категорий нет. Попроси владельца добавить через /categories."
     );
-    await safeRestore(conversation, ctx, product.id);
     return;
   }
 
@@ -153,7 +140,7 @@ async function editCategory(
     const data = next.callbackQuery.data ?? "";
     if (data === "edc:cancel") {
       await next.answerCallbackQuery();
-      await cancelAndRestore(conversation, ctx, product.id);
+      await cancel(ctx);
       return;
     }
     const m = data.match(/^edc:(\d+)$/);
@@ -190,7 +177,7 @@ async function editSize(
       const next = await conversation.waitFor("message:text");
       const t = next.message.text.trim();
       if (t === "/cancel") {
-        await cancelAndRestore(conversation, ctx, product.id);
+        await cancel(ctx);
         return;
       }
       if (!t || t.length > 10) {
@@ -229,7 +216,7 @@ async function editSize(
     const data = next.callbackQuery.data ?? "";
     if (data === "eds:cancel") {
       await next.answerCallbackQuery();
-      await cancelAndRestore(conversation, ctx, product.id);
+      await cancel(ctx);
       return;
     }
     const m = data.match(/^eds:(XS|S|M|L|XL|XXL)$/);
@@ -262,7 +249,7 @@ async function editCondition(
     const next = await conversation.waitFor("message:text");
     const text = next.message.text.trim();
     if (text === "/cancel") {
-      await cancelAndRestore(conversation, ctx, product.id);
+      await cancel(ctx);
       return;
     }
     const n = Number(text);
@@ -298,7 +285,7 @@ async function editPrice(
     const next = await conversation.waitFor("message:text");
     const text = next.message.text.trim();
     if (text === "/cancel") {
-      await cancelAndRestore(conversation, ctx, product.id);
+      await cancel(ctx);
       return;
     }
     const n = Number(text);
@@ -336,11 +323,10 @@ async function editDescription(
     const next = await conversation.waitFor("message:text");
     const text = next.message.text.trim();
     if (text === "/cancel") {
-      await cancelAndRestore(conversation, ctx, product.id);
+      await cancel(ctx);
       return;
     }
     if (text === ".") {
-      // стираем
       const updated = await conversation.external(() =>
         prisma.product.update({
           where: { id: product.id },
@@ -371,7 +357,7 @@ async function editDescription(
   }
 }
 
-// ─── Фото (полное пересоздание поста в канале и в служебном чате) ────────────
+// ─── Фото (полное пересоздание поста в канале) ────────────────────────────────
 
 async function editPhotos(
   conversation: AppConversation,
@@ -379,13 +365,11 @@ async function editPhotos(
   product: ProductWithRelations
 ): Promise<void> {
   await ctx.reply(
-    `Загрузи новый набор фото (1-${MAX_PHOTOS}). Старые удалятся. ` +
-      `Альбом в канале и в служебном чате будет пересоздан. Чтобы отменить — /cancel.`,
+    `Загрузи новый набор фото (1-${MAX_PHOTOS}). Старые удалятся. Чтобы отменить — /cancel.`,
     { reply_markup: new InlineKeyboard().text("Отмена", "edp:cancel") }
   );
 
   const newPhotos: { fileId: string }[] = [];
-  // Одно сообщение-индикатор: первое фото создаёт его, остальные — редактируют.
   let promptMessageId: number | undefined = undefined;
 
   collecting: while (true) {
@@ -393,7 +377,7 @@ async function editPhotos(
     const next = await conversation.wait();
 
     if (next.message?.text === "/cancel") {
-      await cancelAndRestore(conversation, ctx, product.id);
+      await cancel(ctx);
       return;
     }
 
@@ -401,7 +385,7 @@ async function editPhotos(
       const d = next.callbackQuery.data ?? "";
       if (d === "edp:cancel") {
         await next.answerCallbackQuery();
-        await cancelAndRestore(conversation, ctx, product.id);
+        await cancel(ctx);
         return;
       }
       if (d === "edp:done") {
@@ -512,7 +496,6 @@ async function editPhotos(
     ])
   );
 
-  // ─ Перезагружаем продукт со свежими отношениями ─
   const updated = await conversation.external(() =>
     prisma.product.findUnique({
       where: { id: product.id },
@@ -521,68 +504,51 @@ async function editPhotos(
   );
   if (!updated) throw new Error("Товар исчез после обновления фото");
 
-  // ─ Если количество фото не изменилось — редактируем альбом «на месте»
-  //   (editMessageMedia). Подписчики канала не получают уведомление, в
-  //   служебном чате не возникает спама. Message_id остаются прежними.
-  //   Если количество разное — Telegram не позволяет менять размер media
-  //   group, придётся пересоздавать.
-  const sameCount =
-    product.photos.length === updated.photos.length &&
-    product.channelMessageIds.length === updated.photos.length &&
-    product.serviceMediaMessageIds.length === updated.photos.length;
-
-  if (sameCount) {
-    await ctx.reply("Обновляю альбом в канале и служебном чате...");
-
-    await editChannelMedia(ctx.api, updated, updated.photos);
-    await editServiceMedia(ctx.api, updated, updated.photos);
-
-    // Сообщение с кнопками в служебном чате сейчас в edit-lock'е —
-    // нужно вернуть его в исходный вид (текст + 2 кнопки).
-    await restoreServiceButtons(ctx.api, updated);
-
+  // ─ Применяем изменения к каналу ─
+  // 1) Импортированный товар: всегда delete+repost (не можем editMedia на чужих).
+  // 2) Бот-постит, кол-во фото то же: editMessageMedia in-place, без уведомлений.
+  // 3) Иначе: delete+publishToChannel.
+  if (updated.channelMessageIds.length === 0) {
+    // В канал не публиковали — нечего трогать.
     await ctx.reply(
-      `Готово. Товар №${product.id} обновлён. Фото отредактированы на месте.`
+      `Готово. Товар №${product.id} обновлён. Канал не трогали (не публиковали туда).`
     );
     return;
   }
 
-  // ─ Иначе — пересоздание (старый путь) ─
-  await ctx.reply(
-    `Количество фото изменилось (${product.photos.length} → ${updated.photos.length}). ` +
-      `Пересоздаю пост в канале...`
-  );
-  await deleteChannelPost(ctx.api, updated); // очищает channelMessageIds в БД
-  const newChannelIds = await publishToChannel(
-    ctx.api,
-    updated,
-    updated.photos
-  );
-  await conversation.external(() =>
-    prisma.product.update({
-      where: { id: product.id },
-      data: { channelMessageIds: newChannelIds },
-    })
-  );
+  const sameCount =
+    product.photos.length === updated.photos.length &&
+    product.channelMessageIds.length === updated.photos.length;
 
-  await ctx.reply("Пересоздаю в служебном чате...");
-  await deleteServicePost(ctx.api, updated);
-  const newServiceIds = await sendToServiceChat(
-    ctx.api,
-    updated,
-    updated.photos
-  );
-  await conversation.external(() =>
-    prisma.product.update({
-      where: { id: product.id },
-      data: {
-        serviceMediaMessageIds: newServiceIds.mediaMessageIds,
-        serviceMessageId: newServiceIds.controlMessageId,
-      },
-    })
-  );
+  if (updated.isImported || !sameCount) {
+    await ctx.reply(
+      updated.isImported
+        ? "Импортированный товар — пересоздаю пост в канале..."
+        : `Количество фото изменилось (${product.photos.length} → ${updated.photos.length}). Пересоздаю пост в канале...`
+    );
+    if (updated.isImported) {
+      await republishChannelPost(ctx.api, updated, updated.photos);
+    } else {
+      await deleteChannelPost(ctx.api, updated);
+      const newChannelIds = await publishToChannel(
+        ctx.api,
+        updated,
+        updated.photos
+      );
+      await conversation.external(() =>
+        prisma.product.update({
+          where: { id: product.id },
+          data: { channelMessageIds: newChannelIds },
+        })
+      );
+    }
+    await ctx.reply(`Готово. Товар №${product.id} — альбом пересоздан в канале.`);
+    return;
+  }
 
+  await ctx.reply("Обновляю фото в канале (in-place)...");
+  await editChannelMedia(ctx.api, updated, updated.photos);
   await ctx.reply(
-    `Готово. Товар №${product.id} обновлён. Альбом пересоздан в канале и в служебном чате.`
+    `Готово. Товар №${product.id} обновлён. Фото отредактированы на месте.`
   );
 }

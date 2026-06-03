@@ -3,7 +3,6 @@ import { prisma } from "../../db";
 import config from "../../config";
 import type { AppContext, AppConversation } from "../types";
 import { uploadTelegramPhotoToSupabase } from "../upload";
-import { sendToServiceChat } from "../service-chat";
 import { parseCaption, type ParsedCaption } from "../parse-caption";
 
 const CLOTHING_SIZES = ["XS", "S", "M", "L", "XL", "XXL"] as const;
@@ -431,7 +430,27 @@ export async function importProductConversation(
     }
   }
 
-  // ── Шаг 5: загружаем фото в Supabase + создаём Product ───────────────────
+  // ── Шаг 5: проверка на дубль + загрузка фото в Supabase + Product ────────
+  // Защита от дублей: если другой пользователь / параллельная пересылка
+  // (та же media_group) уже импортировали этот пост — не создаём дубль и
+  // НЕ грузим фото в Supabase зря.
+  const channelMessageIds = photos
+    .map((p) => p.originalMessageId)
+    .sort((a, b) => a - b);
+  const alreadyImported = await conversation.external(() =>
+    prisma.product.findFirst({
+      where: { channelMessageIds: { hasSome: channelMessageIds } },
+      select: { id: true },
+    })
+  );
+  if (alreadyImported) {
+    await ctx.reply(
+      `Этот пост уже импортирован — товар №${alreadyImported.id}. ` +
+        `Открыть его можно через /products. Импорт отменён.`
+    );
+    return;
+  }
+
   const progress = await ctx.reply(
     `Загружаю фото в хранилище (0/${photos.length})...`
   );
@@ -472,13 +491,28 @@ export async function importProductConversation(
     return;
   }
 
-  // channelMessageIds = оригинальные message_id из канала.
-  // Бот сможет удалить эти посты при SOLD (если он админ канала).
-  // ВНИМАНИЕ: editMessage* на этих id работать НЕ будет (Telegram запрещает
-  // ботам редактировать чужие сообщения). Это задокументированное ограничение.
-  const channelMessageIds = photos
-    .map((p) => p.originalMessageId)
-    .sort((a, b) => a - b);
+  // Повторная проверка на дубль непосредственно перед INSERT — окно гонки
+  // (две параллельные пересылки) могло не закрыться первой проверкой.
+  const alreadyImported2 = await conversation.external(() =>
+    prisma.product.findFirst({
+      where: { channelMessageIds: { hasSome: channelMessageIds } },
+      select: { id: true },
+    })
+  );
+  if (alreadyImported2) {
+    await ctx.reply(
+      `Гонка: пост успели импортировать (товар №${alreadyImported2.id}). ` +
+        `Создавать дубль не стал. Загруженные сейчас фото удалю.`
+    );
+    // best-effort удаление: не критично если упадёт.
+    try {
+      const { supabase, SUPABASE_BUCKET } = await import("../../supabase");
+      await supabase.storage
+        .from(SUPABASE_BUCKET)
+        .remove(uploaded.map((u) => u.storagePath));
+    } catch {}
+    return;
+  }
 
   const product = await conversation.external(() =>
     prisma.product.create({
@@ -489,7 +523,8 @@ export async function importProductConversation(
         condition: draft.condition!,
         price: draft.price!,
         status: "ACTIVE",
-        visibleOnSite: true, // импортированные — сразу на сайт
+        visibleOnSite: true,
+        isImported: true, // оригинал в канале — чужое сообщение для бота
         channelMessageIds,
         serviceMessageId: null,
         serviceMediaMessageIds: [],
@@ -507,36 +542,12 @@ export async function importProductConversation(
     })
   );
 
-  // Опциональная копия в служебный чат.
-  const serviceChatEnabled = Boolean(process.env.SERVICE_CHAT_ID);
-  if (serviceChatEnabled) {
-    try {
-      const serviceIds = await sendToServiceChat(
-        ctx.api,
-        product,
-        product.photos
-      );
-      await conversation.external(() =>
-        prisma.product.update({
-          where: { id: product.id },
-          data: {
-            serviceMediaMessageIds: serviceIds.mediaMessageIds,
-            serviceMessageId: serviceIds.controlMessageId,
-          },
-        })
-      );
-    } catch (e) {
-      console.error("sendToServiceChat (import) failed:", e);
-      // не критично, продолжаем
-    }
-  }
-
   await ctx.reply(
     `✅ Импортирован товар №${product.id}.\n` +
-      `Пост в канале не дублируется — используется оригинальный.\n` +
-      `Управлять можно через /products.\n\n` +
-      `Ограничение: бот может УДАЛИТЬ оригинальный пост в канале (при ` +
-      `пометке ПРОДАНО), но не может его редактировать. Изменения ` +
-      `description/цены через /products обновят БД и сайт, но не канал.`
+      `Используется оригинальный пост в канале.\n` +
+      `При редактировании / пометке ПРОДАНО оригинал будет ПЕРЕСОЗДАН\n` +
+      `(Telegram не разрешает ботам редактировать чужие сообщения), ` +
+      `после чего следующие правки уже идут на месте.\n\n` +
+      `Управлять — через /products.`
   );
 }

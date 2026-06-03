@@ -1,22 +1,25 @@
 import type { Api } from "grammy";
 import { prisma } from "../../db";
-import type { AppContext } from "../types";
-import { markChannelAsSold, restoreChannelFromSold } from "../channel";
-import { markServiceAsSold, restoreServiceButtons } from "../service-chat";
-
-const SERVICE_CHAT_ID = process.env.SERVICE_CHAT_ID;
+import {
+  markChannelAsSold,
+  republishChannelPost,
+  restoreChannelFromSold,
+} from "../channel";
 
 /**
- * Переводит товар в SOLD: статус в БД + метка в канале + обновление
- * сообщения в служебном чате (если оно есть). Возвращает текст для toast.
+ * Переводит товар в SOLD: статус в БД + метка ❌ ПРОДАНО в канале.
+ * Идемпотентно. Вызывается из листалки /products.
  *
- * Идемпотентно. Вызывается и из служебного чата (onSoldClick), и из
- * листалки /products в ЛС (onProductSold).
+ * Для импортированных постов (isImported=true): пост в канале не «наш»,
+ * editMessageCaption запрещён Telegram'ом для чужих сообщений. Поэтому
+ * для них — republishChannelPost с soldMarker=true (delete оригинала +
+ * репост альбома с меткой ПРОДАНО). После repost isImported сбрасывается:
+ * новые сообщения уже наши, дальнейшие операции работают «на месте».
  */
 export async function applySold(api: Api, productId: number): Promise<string> {
   const product = await prisma.product.findUnique({
     where: { id: productId },
-    include: { category: true },
+    include: { category: true, photos: true },
   });
   if (!product) return "Товар не найден.";
   if (product.status === "SOLD") return "Уже продано.";
@@ -24,19 +27,24 @@ export async function applySold(api: Api, productId: number): Promise<string> {
   const updated = await prisma.product.update({
     where: { id: product.id },
     data: { status: "SOLD" },
-    include: { category: true },
+    include: { category: true, photos: true },
   });
 
-  // markServiceAsSold сам пропускает, если serviceMessageId == null
-  // (служебного чата нет / товар туда не постился).
-  await markChannelAsSold(api, updated);
-  await markServiceAsSold(api, updated);
+  if (updated.isImported && updated.channelMessageIds.length > 0) {
+    await republishChannelPost(api, updated, updated.photos, { sold: true });
+  } else {
+    await markChannelAsSold(api, updated);
+  }
 
   return "Помечено как продано";
 }
 
 /**
  * Зеркально applySold: возврат товара в ACTIVE.
+ *
+ * Если SOLD был применён к импортированному товару, к этому моменту он
+ * уже «наш» (republishChannelPost сбросил isImported), поэтому restore
+ * через editMessageCaption работает штатно.
  */
 export async function applyRestock(
   api: Api,
@@ -44,7 +52,7 @@ export async function applyRestock(
 ): Promise<string> {
   const product = await prisma.product.findUnique({
     where: { id: productId },
-    include: { category: true },
+    include: { category: true, photos: true },
   });
   if (!product) return "Товар не найден.";
   if (product.status === "ACTIVE") return "Уже в наличии.";
@@ -52,46 +60,16 @@ export async function applyRestock(
   const updated = await prisma.product.update({
     where: { id: product.id },
     data: { status: "ACTIVE" },
-    include: { category: true },
+    include: { category: true, photos: true },
   });
 
-  await restoreChannelFromSold(api, updated);
-  await restoreServiceButtons(api, updated);
+  if (updated.isImported && updated.channelMessageIds.length > 0) {
+    // Маловероятный кейс: имп. товар стал SOLD и retreat'нулся в restock без
+    // первого republish. На всякий случай — тоже republish, без soldMarker.
+    await republishChannelPost(api, updated, updated.photos, { sold: false });
+  } else {
+    await restoreChannelFromSold(api, updated);
+  }
 
   return "Возвращено в наличие";
-}
-
-/**
- * Handler для клика «❌ Нет в наличии» в служебном чате.
- * Доступно любому whitelisted работнику.
- */
-export async function onSoldClick(ctx: AppContext): Promise<void> {
-  if (String(ctx.chat?.id) !== SERVICE_CHAT_ID) {
-    await ctx.answerCallbackQuery();
-    return;
-  }
-  const productId = Number((ctx.match as RegExpMatchArray)?.[1]);
-  if (!productId) {
-    await ctx.answerCallbackQuery({ text: "Товар не найден.", show_alert: true });
-    return;
-  }
-  const msg = await applySold(ctx.api, productId);
-  await ctx.answerCallbackQuery({ text: msg });
-}
-
-/**
- * Handler для клика «✅ Вернуть в наличие» в служебном чате.
- */
-export async function onRestockClick(ctx: AppContext): Promise<void> {
-  if (String(ctx.chat?.id) !== SERVICE_CHAT_ID) {
-    await ctx.answerCallbackQuery();
-    return;
-  }
-  const productId = Number((ctx.match as RegExpMatchArray)?.[1]);
-  if (!productId) {
-    await ctx.answerCallbackQuery({ text: "Товар не найден.", show_alert: true });
-    return;
-  }
-  const msg = await applyRestock(ctx.api, productId);
-  await ctx.answerCallbackQuery({ text: msg });
 }

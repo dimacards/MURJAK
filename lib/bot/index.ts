@@ -34,8 +34,6 @@ import {
   importProductConversation,
   type ImportEntryArgs,
 } from "./conversations/import-product";
-import { onEditClick, onEditCancel } from "./handlers/edit";
-import { onSoldClick, onRestockClick } from "./handlers/sold";
 import {
   productsCommand,
   onProductsPage,
@@ -162,15 +160,9 @@ bot.callbackQuery(/^c_rename:(\d+)$/, ownerOnly, onCategoryRename);
 bot.callbackQuery(/^c_back$/, ownerOnly, onCategoryBack);
 bot.callbackQuery(/^c_add$/, ownerOnly, onCategoryAdd);
 
-// 5. Кнопки служебного чата:
-//    edit:{id}            — клик в служебном чате, бот пишет в ЛС меню полей.
-//    editcancel:{id}      — клик в ЛС, отмена редактирования, возврат кнопок.
-//    editfield:{id}:{f}   — клик в ЛС, входит в editProductConversation.
-//    sold:{id}            — заглушка до Этапа 8.
-
-bot.callbackQuery(/^edit:(\d+)$/, onEditClick);
-bot.callbackQuery(/^editcancel:(\d+)$/, onEditCancel);
-
+// 5. Меню редактирования полей (вызывается из карточки /products):
+//    editfield:{id}:{f} — выбор поля → вход в editProductConversation.
+//    editcancel:{id}    — закрытие меню (никаких side-эффектов).
 bot.callbackQuery(
   /^editfield:(\d+):(photos|category|size|condition|price|description)$/,
   async (ctx) => {
@@ -186,8 +178,11 @@ bot.callbackQuery(
   }
 );
 
-bot.callbackQuery(/^sold:(\d+)$/, onSoldClick);
-bot.callbackQuery(/^restock:(\d+)$/, onRestockClick);
+bot.callbackQuery(/^editcancel:(\d+)$/, async (ctx) => {
+  await ctx.answerCallbackQuery();
+  // Просто гасим спиннер, меню можно оставить — пользователь сам закроет
+  // или нажмёт другую кнопку. Никакой работы в БД/каналах нет.
+});
 
 // 6. Кнопки листалки /products (управление товарами в ЛС бота).
 bot.callbackQuery(/^plist:(\d+)$/, onProductsPage);
@@ -238,6 +233,21 @@ bot.on("message:photo", privateOnly, async (ctx) => {
       "Бот принимает к импорту только посты из нашего канала. " +
         "Этот пост из другого канала — импорт невозможен."
     );
+    return;
+  }
+
+  // Защита от дублей: если этот message_id из канала УЖЕ импортирован —
+  // не стартуем повторную conversation. Без этой проверки альбом из 10 фото
+  // мог в гоночных условиях стартовать несколько conversation одновременно
+  // (если первая ещё не успела persist'нуть state в BotSession к моменту
+  // прихода следующего webhook'а).
+  const existing = await prisma.product.findFirst({
+    where: { channelMessageIds: { has: fwd.message_id } },
+    select: { id: true },
+  });
+  if (existing) {
+    // Молча игнорируем: если это альбом, остальные фото тоже придут,
+    // не хочу спамить «уже импортировано» × N раз.
     return;
   }
 

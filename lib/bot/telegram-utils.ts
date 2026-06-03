@@ -5,9 +5,7 @@ import { GrammyError } from "grammy";
  * на ТО ЖЕ содержимое (Telegram отвечает 400 «message is not modified»).
  *
  * Возникает регулярно при `editMessageText` / `editMessageCaption` если ни
- * текст, ни клавиатура не поменялись. Например, при редактировании размера
- * товара текст `buildServiceControlText` не меняется (там только id, категория
- * и цена), и Telegram ругается. Семантически это успех — можно игнорировать.
+ * текст, ни клавиатура не поменялись. Семантически это успех — игнорируем.
  */
 export function isNotModifiedError(e: unknown): boolean {
   return (
@@ -24,7 +22,7 @@ export function isNotModifiedError(e: unknown): boolean {
  *  - «message can't be edited» — слишком старое или не наше.
  *
  * Все они означают «редактировать нечего/нельзя, но это не повод падать с 500».
- * Используется в channel.ts / service-chat.ts вокруг editMessage*.
+ * Используется в channel.ts вокруг editMessage*.
  */
 export function isIgnorableEditError(e: unknown): boolean {
   if (!(e instanceof GrammyError)) return false;

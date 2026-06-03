@@ -8,7 +8,6 @@ import {
   CAPTION_PARSE_MODE,
   publishToChannel,
 } from "../channel";
-import { sendToServiceChat } from "../service-chat";
 
 // Размеры для категорий типа CLOTHING. Для SHOE размер вводится вручную.
 const CLOTHING_SIZES = ["XS", "S", "M", "L", "XL", "XXL"] as const;
@@ -568,37 +567,7 @@ export async function addProductConversation(
   // Если publishToChannelFlag=false, channelMessageIds остаётся пустым
   // массивом (как создали). Канал не трогаем вообще.
 
-  // ── Шаг 9: копия в служебный чат (ОПЦИОНАЛЬНО) ────────────────────────────
-  // Если SERVICE_CHAT_ID не задан в .env — пропускаем. Управление товаром
-  // тогда идёт через команду /products в боте.
-  const serviceChatEnabled = Boolean(process.env.SERVICE_CHAT_ID);
-  if (serviceChatEnabled) {
-    try {
-      const serviceIds = await sendToServiceChat(
-        ctx.api,
-        product,
-        product.photos
-      );
-      await conversation.external(() =>
-        prisma.product.update({
-          where: { id: product.id },
-          data: {
-            serviceMediaMessageIds: serviceIds.mediaMessageIds,
-            serviceMessageId: serviceIds.controlMessageId,
-          },
-        })
-      );
-    } catch (e) {
-      console.error("sendToServiceChat failed:", e);
-      await ctx.reply(
-        `Товар опубликован в канале, но не удалось отправить копию в служебный чат:\n` +
-          `${e instanceof Error ? e.message : String(e)}\n\n` +
-          `Управлять товаром можно через /products.`
-      );
-      return;
-    }
-  }
-
+  // Финальное уведомление работнику.
   const destinationsList: string[] = [];
   if (publishToChannelFlag) {
     destinationsList.push(
@@ -608,8 +577,7 @@ export async function addProductConversation(
   if (publishToSiteFlag) destinationsList.push("сайт");
   // если оба флага false мы бы вышли раньше, до сюда не дойдём
   const where = destinationsList.join(" и ");
-  const manageHint = serviceChatEnabled
-    ? "Управляй кнопками в служебном чате или через /products."
-    : "Управлять товаром можно через /products.";
-  await ctx.reply(`✅ Товар добавлен (${where}). ${manageHint}`);
+  await ctx.reply(
+    `✅ Товар добавлен (${where}). Управлять можно через /products.`
+  );
 }
