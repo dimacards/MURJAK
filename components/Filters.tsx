@@ -4,8 +4,6 @@ import { useState } from "react";
 import type { CategoryDto, ProductSort } from "@/lib/api-types";
 import styles from "./Filters.module.css";
 
-const CLOTHING_SIZES = ["XS", "S", "M", "L", "XL", "XXL"] as const;
-
 export type FiltersState = {
   search: string;
   category: string;
@@ -55,11 +53,14 @@ export function Filters({
   onChange,
   onReset,
   categories,
+  availableSizes,
 }: {
   value: FiltersState;
   onChange: (next: FiltersState) => void;
   onReset: () => void;
   categories: CategoryDto[];
+  /** Размеры, которые реально присутствуют в активных видимых товарах. */
+  availableSizes: string[];
 }) {
   const [expanded, setExpanded] = useState(false);
 
@@ -110,34 +111,36 @@ export function Filters({
 
       {expanded && (
         <div className={styles.panel}>
-          <div className={styles.field}>
-            <label className={styles.label}>Размер</label>
-            <div className={styles.sizeRow}>
-              <input
-                type="text"
-                className={styles.sizeInput}
-                placeholder="напр. M или 42"
-                value={value.size}
-                onChange={(e) => update("size", e.target.value)}
-              />
-              <div className={styles.sizeChips}>
-                {CLOTHING_SIZES.map((s) => (
-                  <button
-                    key={s}
-                    type="button"
-                    className={`${styles.chip} ${
-                      value.size === s ? styles.chipActive : ""
-                    }`}
-                    onClick={() =>
-                      update("size", value.size === s ? "" : s)
-                    }
-                  >
-                    {s}
-                  </button>
-                ))}
+          {availableSizes.length > 0 && (
+            <div className={styles.field}>
+              <label className={styles.label}>Размер</label>
+              <div className={styles.sizeRow}>
+                <input
+                  type="text"
+                  className={styles.sizeInput}
+                  placeholder="напр. M или 42"
+                  value={value.size}
+                  onChange={(e) => update("size", e.target.value)}
+                />
+                <div className={styles.sizeChips}>
+                  {availableSizes.map((s) => (
+                    <button
+                      key={s}
+                      type="button"
+                      className={`${styles.chip} ${
+                        value.size === s ? styles.chipActive : ""
+                      }`}
+                      onClick={() =>
+                        update("size", value.size === s ? "" : s)
+                      }
+                    >
+                      {s}
+                    </button>
+                  ))}
+                </div>
               </div>
             </div>
-          </div>
+          )}
 
           <div className={styles.field}>
             <label className={styles.label}>Состояние</label>

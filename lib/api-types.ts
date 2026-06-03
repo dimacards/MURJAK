@@ -29,6 +29,15 @@ export type CategoryDto = {
 };
 
 /**
+ * Динамический ответ /api/filters — содержит только те значения,
+ * которые есть хотя бы в одном активном товаре, видимом на сайте.
+ */
+export type FiltersDto = {
+  categories: CategoryDto[];
+  sizes: string[];
+};
+
+/**
  * Допустимые значения параметра `sort` в GET /api/products.
  */
 export const PRODUCT_SORT = ["new", "price_asc", "price_desc"] as const;

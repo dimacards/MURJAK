@@ -62,6 +62,15 @@ export async function importProductConversation(
 
   const isAlbum = Boolean(args.mediaGroupId);
 
+  // Время последнего полученного фото (Telegram unix seconds — детерминированно,
+  // не ломает replay grammy-conversation). Когда юзер жмёт «Готово», сравниваем
+  // с моментом клика: если фото пришло меньше N секунд назад — отказываем
+  // (могут быть в полёте остальные фото альбома).
+  let lastPhotoAt: number = ctx.message?.date ?? Math.floor(Date.now() / 1000);
+  // Сколько секунд «тишины» считаем достаточным чтобы альбом точно долетел.
+  // Telegram обычно доставляет все фото за 1-2 секунды, ставим запас.
+  const ALBUM_QUIET_SECONDS = 3;
+
   function statusText(): string {
     if (!isAlbum) {
       return (
@@ -97,6 +106,25 @@ export async function importProductConversation(
         return;
       }
       if (data === "ip_ready") {
+        // Если это альбом и последнее фото пришло меньше ALBUM_QUIET_SECONDS
+        // назад — велик шанс что часть фото ещё в полёте. Отказываем
+        // с подсказкой подождать.
+        if (isAlbum) {
+          const now = await conversation.external(() =>
+            Math.floor(Date.now() / 1000)
+          );
+          const elapsed = now - lastPhotoAt;
+          if (elapsed < ALBUM_QUIET_SECONDS) {
+            const wait = ALBUM_QUIET_SECONDS - elapsed;
+            await next.answerCallbackQuery({
+              text:
+                `Подожди ~${wait}с — фото из альбома ещё могут прийти. ` +
+                `Сейчас принято ${photos.length}.`,
+              show_alert: true,
+            });
+            continue;
+          }
+        }
         await next.answerCallbackQuery();
         break collectingPhotos;
       }
@@ -129,6 +157,7 @@ export async function importProductConversation(
           ? fwd.message_id
           : next.message.message_id;
       photos.push({ fileId: best.file_id, originalMessageId: origMsgId });
+      lastPhotoAt = next.message.date;
 
       // Обновляем статус-сообщение
       if (statusChatId !== undefined) {
@@ -543,11 +572,10 @@ export async function importProductConversation(
   );
 
   await ctx.reply(
-    `✅ Импортирован товар №${product.id}.\n` +
-      `Используется оригинальный пост в канале.\n` +
-      `При редактировании / пометке ПРОДАНО оригинал будет ПЕРЕСОЗДАН\n` +
-      `(Telegram не разрешает ботам редактировать чужие сообщения), ` +
-      `после чего следующие правки уже идут на месте.\n\n` +
-      `Управлять — через /products.`
+    `✅ Товар №${product.id} импортирован. Управляй через /products.\n\n` +
+      `Подсказка: при первой правке или пометке ПРОДАНО бот пересоздаст ` +
+      `пост в канале (Telegram запрещает ботам редактировать чужие ` +
+      `сообщения). После этого следующие правки — мгновенные, на месте, ` +
+      `без уведомления подписчиков.`
   );
 }

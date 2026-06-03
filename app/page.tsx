@@ -3,7 +3,7 @@
 import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import type {
-  CategoryDto,
+  FiltersDto,
   ProductListResponse,
   ProductSort,
 } from "@/lib/api-types";
@@ -116,17 +116,22 @@ function HomeInner() {
     writeToUrl(draft, 1);
   }, [draft, applied, writeToUrl]);
 
-  const [categories, setCategories] = useState<CategoryDto[]>([]);
+  const [filtersDict, setFiltersDict] = useState<FiltersDto>({
+    categories: [],
+    sizes: [],
+  });
   const [data, setData] = useState<ProductListResponse | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Категории — один раз.
+  // Динамический справочник фильтров: только те категории и размеры, которые
+  // реально присутствуют в активных видимых товарах. Так не предлагаем юзеру
+  // «ботинки», если ботинок нет.
   useEffect(() => {
-    fetch("/api/categories")
+    fetch("/api/filters")
       .then((r) => r.json())
-      .then((d: CategoryDto[]) => setCategories(d))
-      .catch((e) => console.error("Failed to load categories:", e));
+      .then((d: FiltersDto) => setFiltersDict(d))
+      .catch((e) => console.error("Failed to load filters dictionary:", e));
   }, []);
 
   // Загрузка товаров. Зависит от applied (т.е. URL) и page.
@@ -184,7 +189,8 @@ function HomeInner() {
             setDraft(EMPTY_FILTERS);
             writeToUrl(EMPTY_FILTERS, 1);
           }}
-          categories={categories}
+          categories={filtersDict.categories}
+          availableSizes={filtersDict.sizes}
         />
 
         {error ? (
