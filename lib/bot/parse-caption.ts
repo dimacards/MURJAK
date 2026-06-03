@@ -75,6 +75,13 @@ const PATTERNS: RegExp[] = [
   new RegExp(PRICE_LABEL + String.raw`[\s:\-—]+` + NUMBER, "i"),
 ];
 
+/** Строка, ВСЯ состоящая из числа (с опциональными разделителями тысяч).
+ * Наш собственный бот публикует цену именно так — голым числом без валюты:
+ * «31000» на отдельной строке. Поэтому это важный fallback, но
+ * применяется только если строка не содержит лейблов (Размер/Состояние/Купить),
+ * и число ≥10 (отсекает совпадение со значением состояния 1..10). */
+const BARE_NUMBER_LINE = new RegExp(`^${NUMBER}$`);
+
 /** Извлекает целое из захваченной группы, очищая разделители. */
 function digitsToInt(raw: string): number | undefined {
   const cleaned = raw.replace(/[\s   .,]/g, "");
@@ -84,6 +91,7 @@ function digitsToInt(raw: string): number | undefined {
 }
 
 function parsePrice(lines: string[]): number | undefined {
+  // Сначала строгие паттерны с валютой/лейблом.
   for (const line of lines) {
     for (const re of PATTERNS) {
       const m = line.match(re);
@@ -92,6 +100,18 @@ function parsePrice(lines: string[]): number | undefined {
         if (n !== undefined) return n;
       }
     }
+  }
+  // Fallback: «голое число» на отдельной строке. Это формат поста нашего же
+  // бота. Скипаем строки с лейблами (Размер: 8/10 не должно стать ценой 10
+  // даже после очистки лейбла — мы пропускаем такие строки целиком).
+  for (const line of lines) {
+    if (LABEL_RE.test(line)) continue;
+    const m = line.match(BARE_NUMBER_LINE);
+    if (!m) continue;
+    const n = digitsToInt(m[1]);
+    // Минимум 10 — отсекает «8», «9» и т.п., которые могут быть оторванной
+    // оценкой состояния, а не ценой.
+    if (n !== undefined && n >= 10) return n;
   }
   return undefined;
 }

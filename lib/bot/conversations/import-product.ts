@@ -271,18 +271,11 @@ export async function importProductConversation(
   }
 
   function previewKeyboard(): InlineKeyboard {
-    const allFilled =
-      draft.description !== null &&
-      draft.size !== null &&
-      draft.condition !== null &&
-      draft.price !== null;
-    const kb = new InlineKeyboard()
+    return new InlineKeyboard()
       .text("✏️ Изменить поле", "ip_edit")
-      .row();
-    if (allFilled) kb.text("✅ Сохранить", "ip_save");
-    else kb.text("⚠️ Заполни все поля", "ip_save_disabled");
-    kb.text("❌ Отмена", "ip_cancel");
-    return kb;
+      .row()
+      .text("✅ Сохранить", "ip_save")
+      .text("❌ Отмена", "ip_cancel");
   }
 
   async function showPreview(): Promise<void> {
@@ -293,7 +286,7 @@ export async function importProductConversation(
 
   previewLoop: while (true) {
     const next = await conversation.waitForCallbackQuery(
-      /^ip_(edit|save|save_disabled|cancel)$/
+      /^ip_(edit|save|cancel)$/
     );
     const data = next.callbackQuery.data;
     if (data === "ip_cancel") {
@@ -301,13 +294,6 @@ export async function importProductConversation(
       await next.editMessageReplyMarkup().catch(() => {});
       await ctx.reply("Импорт отменён.");
       return;
-    }
-    if (data === "ip_save_disabled") {
-      await next.answerCallbackQuery({
-        text: "Сначала заполни все поля.",
-        show_alert: true,
-      });
-      continue;
     }
     if (data === "ip_edit") {
       await next.answerCallbackQuery();
@@ -426,7 +412,19 @@ export async function importProductConversation(
     }
 
     if (data === "ip_save") {
-      // Все поля заполнены — переходим к сохранению.
+      // Проверяем что обязательные поля заполнены. Description опционален —
+      // если null, в посте/на сайте отображается название категории.
+      const missing: string[] = [];
+      if (draft.size === null) missing.push("размер");
+      if (draft.condition === null) missing.push("состояние");
+      if (draft.price === null) missing.push("цена");
+      if (missing.length > 0) {
+        await next.answerCallbackQuery({
+          text: `Не хватает: ${missing.join(", ")}. Нажми «Изменить поле».`,
+          show_alert: true,
+        });
+        continue;
+      }
       await next.answerCallbackQuery({ text: "Сохраняю..." });
       await next.editMessageReplyMarkup().catch(() => {});
       break previewLoop;
