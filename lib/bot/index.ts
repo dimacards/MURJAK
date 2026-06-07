@@ -8,7 +8,23 @@ import type { AppContext } from "./types";
 import { privateOnly, whitelist } from "./middleware";
 import { createPrismaConversationStorage } from "./storage";
 import { startHandler } from "./handlers/start";
+import {
+  productsCommand,
+  onProductsList,
+  onProductOpen,
+  onProductToggleStock,
+  onProductDelPrompt,
+  onProductDelConfirm,
+  onProductEditFeatures,
+  onFeatureDelete,
+} from "./handlers/products";
 import { addProductConversation } from "./conversations/add-product";
+import {
+  editNameConversation,
+  editPriceConversation,
+  editPhotosConversation,
+  addFeatureConversation,
+} from "./conversations/edit-product";
 import { prisma } from "../db";
 
 const token = process.env.BOT_TOKEN;
@@ -58,16 +74,17 @@ bot.use(async (ctx, next) => {
 });
 
 // 2. Conversations плагин с Prisma-storage (BotSession в БД).
-// In-memory не работает на Vercel: каждый webhook-хит — потенциально
-// свежий serverless процесс, in-memory Map не выживает между ними.
 bot.use(
   conversations({
     storage: createPrismaConversationStorage<ConversationData>(),
   }),
 );
 
-// Регистрируем все conversation-функции по их именам.
 bot.use(createConversation(addProductConversation, "addProductConversation"));
+bot.use(createConversation(editNameConversation, "editNameConversation"));
+bot.use(createConversation(editPriceConversation, "editPriceConversation"));
+bot.use(createConversation(editPhotosConversation, "editPhotosConversation"));
+bot.use(createConversation(addFeatureConversation, "addFeatureConversation"));
 
 // 3. Команды (только в ЛС).
 bot.command("start", privateOnly, startHandler);
@@ -76,4 +93,41 @@ bot.command("add_product", privateOnly, async (ctx) => {
   await ctx.conversation.enter("addProductConversation");
 });
 
-// /products будет зарегистрирована в этапе 5.
+bot.command("products", privateOnly, productsCommand);
+
+// 4. Callback-кнопки списка/меню товара.
+bot.callbackQuery(/^pr:list$/, onProductsList);
+bot.callbackQuery(/^pr:open:(\d+)$/, onProductOpen);
+bot.callbackQuery(/^pr:togstk:(\d+)$/, onProductToggleStock);
+bot.callbackQuery(/^pr:delpr:(\d+)$/, onProductDelPrompt);
+bot.callbackQuery(/^pr:delyes:(\d+)$/, onProductDelConfirm);
+
+// 5. Подменю features.
+bot.callbackQuery(/^pr:fmenu:(\d+)$/, onProductEditFeatures);
+bot.callbackQuery(/^pr:fdel:(\d+)$/, onFeatureDelete);
+
+// 6. Вход в edit-conversations из меню товара / подменю features.
+bot.callbackQuery(/^pr:editname:(\d+)$/, async (ctx) => {
+  const match = ctx.match as RegExpMatchArray | undefined;
+  const id = Number(match?.[1]);
+  await ctx.answerCallbackQuery();
+  await ctx.conversation.enter("editNameConversation", id);
+});
+bot.callbackQuery(/^pr:editprice:(\d+)$/, async (ctx) => {
+  const match = ctx.match as RegExpMatchArray | undefined;
+  const id = Number(match?.[1]);
+  await ctx.answerCallbackQuery();
+  await ctx.conversation.enter("editPriceConversation", id);
+});
+bot.callbackQuery(/^pr:editphotos:(\d+)$/, async (ctx) => {
+  const match = ctx.match as RegExpMatchArray | undefined;
+  const id = Number(match?.[1]);
+  await ctx.answerCallbackQuery();
+  await ctx.conversation.enter("editPhotosConversation", id);
+});
+bot.callbackQuery(/^pr:fadd:(\d+)$/, async (ctx) => {
+  const match = ctx.match as RegExpMatchArray | undefined;
+  const id = Number(match?.[1]);
+  await ctx.answerCallbackQuery();
+  await ctx.conversation.enter("addFeatureConversation", id);
+});
