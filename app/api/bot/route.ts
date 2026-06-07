@@ -5,6 +5,10 @@ import { bot } from "@/lib/bot";
 export const runtime = "nodejs";
 // Webhook — всегда динамический, кэшировать нельзя.
 export const dynamic = "force-dynamic";
+// Hobby по умолчанию рубит функцию на 10с. Публикация товара с несколькими
+// фото (getFile + скачивание + upload в Supabase, последовательно) может
+// не уложиться. Поднимаем до 60с (макс на Hobby).
+export const maxDuration = 60;
 
 const handler = webhookCallback(bot, "std/http");
 

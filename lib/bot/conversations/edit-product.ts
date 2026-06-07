@@ -172,22 +172,20 @@ export async function editPhotosConversation(
   );
 
   const state = { id: initial.message_id as number | undefined };
+  // ctx.api НАПРЯМУЮ — @grammyjs/conversations реплеит сам, external НЕ нужен.
   const showPrompt = async (text: string, kb: InlineKeyboard | undefined) => {
     const chatId = ctx.chat?.id;
     if (state.id !== undefined && chatId !== undefined) {
-      const currentId = state.id;
-      const ok = await conversation.external(async () => {
-        try {
-          await ctx.api.editMessageText(chatId, currentId, text, {
-            reply_markup: kb,
-          });
-          return true;
-        } catch (e) {
-          return isBenignEditError(e);
-        }
-      });
-      if (ok) return;
-      state.id = undefined;
+      try {
+        await ctx.api.editMessageText(chatId, state.id, text, {
+          reply_markup: kb,
+        });
+        return;
+      } catch (e) {
+        const m = String((e as Error)?.message ?? "").toLowerCase();
+        if (m.includes("not modified")) return;
+        state.id = undefined;
+      }
     }
     const sent = await ctx.reply(text, { reply_markup: kb });
     state.id = sent.message_id;
@@ -385,14 +383,4 @@ async function removeKeyboard(
   await ctx.api
     .editMessageReplyMarkup(chatId, messageId, { reply_markup: undefined })
     .catch(() => {});
-}
-
-function isBenignEditError(e: unknown): boolean {
-  const msg = String((e as Error)?.message ?? "").toLowerCase();
-  return (
-    msg.includes("not modified") ||
-    msg.includes("message to edit not found") ||
-    msg.includes("message can't be edited") ||
-    msg.includes("message_id_invalid")
-  );
 }

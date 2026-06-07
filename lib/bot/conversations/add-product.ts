@@ -12,60 +12,105 @@ const MAX_PRICE = 100_000_000;
 
 const CB_CANCEL = "ap:cancel";
 
-function cancelOnly(): InlineKeyboard {
+function cancelKb(): InlineKeyboard {
   return new InlineKeyboard().text("Отмена", CB_CANCEL);
 }
 
 /**
+ * Обновляет одно «живое» сообщение-подсказку (state.id) или, если его нет
+ * / оно удалено, шлёт новое. ctx.api/ctx.reply вызываются НАПРЯМУЮ —
+ * @grammyjs/conversations реплеит их сам, оборачивать в external НЕЛЬЗЯ.
+ */
+async function upsertPrompt(
+  ctx: AppContext,
+  state: { id: number | undefined },
+  text: string,
+  kb: InlineKeyboard | undefined,
+): Promise<void> {
+  const chatId = ctx.chat?.id;
+  if (state.id !== undefined && chatId !== undefined) {
+    try {
+      await ctx.api.editMessageText(chatId, state.id, text, {
+        reply_markup: kb,
+      });
+      return;
+    } catch (e) {
+      const msg = String((e as Error)?.message ?? "").toLowerCase();
+      // Контент не изменился — это успех, ничего не шлём.
+      if (msg.includes("not modified")) return;
+      // Сообщение удалено/нельзя редактировать — отправим новое ниже.
+      state.id = undefined;
+    }
+  }
+  const sent = await ctx.reply(text, { reply_markup: kb });
+  state.id = sent.message_id;
+}
+
+/** Снять клавиатуру с сообщения. ctx.api напрямую, ошибки глотаем. */
+async function stripKb(ctx: AppContext, messageId: number): Promise<void> {
+  const chatId = ctx.chat?.id;
+  if (chatId === undefined) return;
+  try {
+    await ctx.api.editMessageReplyMarkup(chatId, messageId, {
+      reply_markup: undefined,
+    });
+  } catch {
+    /* безразлично */
+  }
+}
+
+/**
  * /add_product — пошаговый ввод товара с редактированием на превью.
- *
- * Шаги:
- *   1) фото 1..10
- *   2) название
- *   3) цена
- *   4) features (опционально)
- *   5) превью (альбом всех фото) — кнопки публикации/отмены/изменения полей.
- *
- * На любом шаге `/cancel` или кнопка «Отмена» обрывают диалог.
  */
 export async function addProductConversation(
   conversation: AppConversation,
   ctx: AppContext,
 ): Promise<void> {
-  const initialPhotos = await collectPhotos(conversation, ctx, {
+  const photos0 = await collectPhotos(conversation, ctx, {
     intro:
-      "Добавим новый товар. Пришли первое фото (от 1 до 10 штук).\n" +
-      "В любой момент: кнопка «Отмена» или /cancel — прерывают.",
+      "Добавим новый товар. Пришли фото (от 1 до 10 штук).\n" +
+      "Кнопка «Отмена» или /cancel — прерывают.",
   });
-  if (initialPhotos === "cancel") return;
+  if (photos0 === "cancel") return;
 
-  const initialName = await collectName(conversation, ctx, {
+  const name0 = await collectName(conversation, ctx, {
     intro: "Название товара?",
   });
-  if (initialName === "cancel") return;
+  if (name0 === "cancel") return;
 
-  const initialPrice = await collectPrice(conversation, ctx, {
+  const price0 = await collectPrice(conversation, ctx, {
     intro: "Цена в рублях (целое число)?",
   });
-  if (initialPrice === "cancel") return;
+  if (price0 === "cancel") return;
 
-  const initialFeatures = await collectFeatures(conversation, ctx, {
+  const features0 = await collectFeatures(conversation, ctx, {
     intro:
-      "Теперь особенности товара (показываются только на странице товара).\n" +
-      "Введи первую — одной строкой. Можно пропустить — нажми «готово».",
+      "Особенности товара (видны только на странице товара).\n" +
+      "Введи первую строкой или нажми «готово».",
   });
-  if (initialFeatures === "cancel") return;
+  if (features0 === "cancel") return;
 
-  let photos = initialPhotos;
-  let name = initialName;
-  let price = initialPrice;
-  let features = initialFeatures;
+  let photos = photos0;
+  let name = name0;
+  let price = price0;
+  let features = features0;
 
-  // У предыдущего kb-сообщения превью убираем клавиатуру, чтобы стары снимок
-  // состояния не отвечал на клик «Опубликовать».
-  let lastKbMessageId: number | undefined;
+  let lastKbMsgId: number | undefined;
 
   while (true) {
+    if (lastKbMsgId !== undefined) await stripKb(ctx, lastKbMsgId);
+
+    // Альбом всех фото (caption на первом) + отдельное сообщение с кнопками
+    // (у media group своей клавиатуры быть не может).
+    const caption = buildCaption(name, price, features);
+    await ctx.replyWithMediaGroup(
+      photos.map((fileId, i) => ({
+        type: "photo" as const,
+        media: fileId,
+        caption: i === 0 ? caption : undefined,
+      })),
+    );
+
     const previewKb = new InlineKeyboard()
       .text("✅ Опубликовать", "ap:pub")
       .row()
@@ -77,207 +122,62 @@ export async function addProductConversation(
       .row()
       .text("Отмена", CB_CANCEL);
 
-    if (lastKbMessageId !== undefined && ctx.chat?.id !== undefined) {
-      const chatId = ctx.chat.id;
-      const msgId = lastKbMessageId;
-      await conversation.external(async () => {
-        try {
-          await ctx.api.editMessageReplyMarkup(chatId, msgId, {
-            reply_markup: undefined,
-          });
-        } catch {
-          /* безразлично */
-        }
-      });
-    }
-
-    // Альбом всех фото + caption на первой. Альбомы не поддерживают inline-
-    // клавиатуру, поэтому кнопки идут отдельным следующим сообщением.
-    const caption = buildCaption(name, price, features);
-    await ctx.replyWithMediaGroup(
-      photos.map((fileId, i) => ({
-        type: "photo" as const,
-        media: fileId,
-        caption: i === 0 ? caption : undefined,
-      })),
-    );
-
     const kbMsg = await ctx.reply("Что делаем?", { reply_markup: previewKb });
-    lastKbMessageId = kbMsg.message_id;
+    lastKbMsgId = kbMsg.message_id;
 
-    const decision = await conversation.waitForCallbackQuery(
+    const dec = await conversation.waitForCallbackQuery(
       /^ap:(pub|cancel|ename|eprice|ephotos|efeats)$/,
     );
-    await decision.answerCallbackQuery().catch(() => {});
-    const action = decision.match?.[1];
+    await dec.answerCallbackQuery().catch(() => {});
+    const action = dec.match?.[1];
 
     if (action === "cancel") {
-      await tryEditText(
-        conversation,
-        decision,
-        decision.chat?.id,
-        kbMsg.message_id,
-        "Добавление отменено.",
-        undefined,
-      );
+      await stripKb(ctx, kbMsg.message_id);
+      await ctx.reply("Добавление отменено.");
       return;
     }
 
     if (action === "pub") {
-      await publish(conversation, decision, kbMsg.message_id, {
-        photos,
-        name,
-        price,
-        features,
-      });
+      await stripKb(ctx, kbMsg.message_id);
+      await publish(conversation, ctx, { photos, name, price, features });
       return;
     }
 
     if (action === "ename") {
-      await tryEditText(
-        conversation,
-        decision,
-        decision.chat?.id,
-        kbMsg.message_id,
-        "Меняем название…",
-        undefined,
-      );
-      const result = await collectName(conversation, ctx, {
+      const r = await collectName(conversation, ctx, {
         intro: "Новое название?",
         current: name,
       });
-      if (result !== "cancel") name = result;
+      if (r !== "cancel") name = r;
       continue;
     }
     if (action === "eprice") {
-      await tryEditText(
-        conversation,
-        decision,
-        decision.chat?.id,
-        kbMsg.message_id,
-        "Меняем цену…",
-        undefined,
-      );
-      const result = await collectPrice(conversation, ctx, {
+      const r = await collectPrice(conversation, ctx, {
         intro: "Новая цена?",
         current: price,
       });
-      if (result !== "cancel") price = result;
+      if (r !== "cancel") price = r;
       continue;
     }
     if (action === "ephotos") {
-      await tryEditText(
-        conversation,
-        decision,
-        decision.chat?.id,
-        kbMsg.message_id,
-        "Меняем фото…",
-        undefined,
-      );
-      const result = await collectPhotos(conversation, ctx, {
-        intro:
-          `Сейчас ${photos.length} фото. Пришли новые (1-10) — старые ` +
-          `заменятся целиком. На «отмену» прежние сохранятся.`,
+      const r = await collectPhotos(conversation, ctx, {
+        intro: `Сейчас ${photos.length} фото. Пришли новые (старые заменятся).`,
       });
-      if (result !== "cancel") photos = result;
+      if (r !== "cancel") photos = r;
       continue;
     }
     if (action === "efeats") {
-      await tryEditText(
-        conversation,
-        decision,
-        decision.chat?.id,
-        kbMsg.message_id,
-        "Меняем особенности…",
-        undefined,
-      );
-      const result = await collectFeatures(conversation, ctx, {
+      const r = await collectFeatures(conversation, ctx, {
         intro:
           features.length > 0
             ? `Текущие особенности (${features.length}) будут заменены. ` +
-              "Введи первую новую или нажми «готово (без особенностей)».\n" +
-              "Нажми «отмена», чтобы оставить старые."
+              "Введи первую или нажми «готово (без особенностей)»."
             : "Введи первую особенность или нажми «готово».",
       });
-      if (result !== "cancel") features = result;
+      if (r !== "cancel") features = r;
       continue;
     }
   }
-}
-
-// ─── Helpers: edit/reply через conversation.external ─────────────────────────
-
-/**
- * Редактирует существующее сообщение или, если не вышло, шлёт новое.
- * Все API-вызовы обёрнуты в conversation.external, чтобы при ре-плее
- * (на serverless каждый webhook — replay) не повторяться и не падать в
- * «message is not modified» / «can't be edited» / «not found» — эти ошибки
- * безвредно игнорируем.
- */
-async function setPrompt(
-  conversation: AppConversation,
-  ctx: AppContext,
-  state: { id: number | undefined },
-  text: string,
-  kb: InlineKeyboard | undefined,
-): Promise<void> {
-  const chatId = ctx.chat?.id;
-
-  if (state.id !== undefined && chatId !== undefined) {
-    const currentId = state.id;
-    const ok = await conversation.external(async () => {
-      try {
-        await ctx.api.editMessageText(chatId, currentId, text, {
-          reply_markup: kb,
-        });
-        return true;
-      } catch (e) {
-        return isBenignEditError(e);
-      }
-    });
-    if (ok) return;
-    state.id = undefined;
-  }
-
-  const sent = await ctx.reply(text, { reply_markup: kb });
-  state.id = sent.message_id;
-}
-
-/**
- * Просто пытается отредактировать сообщение по ID. Ошибки глотает.
- * Используется когда мы знаем messageId но НЕ хотим fallback в reply
- * (например, гасим клавиатуру у старого превью).
- */
-async function tryEditText(
-  conversation: AppConversation,
-  ctx: AppContext,
-  chatId: number | undefined,
-  messageId: number,
-  text: string,
-  kb: InlineKeyboard | undefined,
-): Promise<void> {
-  if (chatId === undefined) return;
-  await conversation.external(async () => {
-    try {
-      await ctx.api.editMessageText(chatId, messageId, text, {
-        reply_markup: kb,
-      });
-    } catch (e) {
-      if (!isBenignEditError(e)) {
-        console.warn("[add_product] edit text failed:", (e as Error)?.message);
-      }
-    }
-  });
-}
-
-function isBenignEditError(e: unknown): boolean {
-  const msg = String((e as Error)?.message ?? "").toLowerCase();
-  return (
-    msg.includes("not modified") ||
-    msg.includes("message to edit not found") ||
-    msg.includes("message can't be edited") ||
-    msg.includes("message_id_invalid")
-  );
 }
 
 // ─── Сбор фото ───────────────────────────────────────────────────────────────
@@ -287,120 +187,70 @@ async function collectPhotos(
   ctx: AppContext,
   opts: { intro: string },
 ): Promise<string[] | "cancel"> {
-  const initial = await ctx.reply(opts.intro, { reply_markup: cancelOnly() });
+  const initial = await ctx.reply(opts.intro, { reply_markup: cancelKb() });
   const state = { id: initial.message_id as number | undefined };
 
-  // Per-batch UX: внутри одного альбома (media_group_id) обновляем счётчик
-  // в ОДНОМ сообщении. Новый альбом или одиночное фото — НОВОЕ сообщение
-  // с новым счётчиком этой порции. Одиночные фото = каждое своя «порция».
-  let currentBatchKey: string | undefined; // media_group_id текущей порции
-  let batchCount = 0; // сколько фото добавлено в текущую порцию
-
-  const photoKb = () =>
+  const kb = () =>
     new InlineKeyboard()
       .text("➕ ещё фото", "ap:pmore")
       .text("✅ готово", "ap:pdone")
       .row()
       .text("Отмена", CB_CANCEL);
 
-  const photoFileIds: string[] = [];
-  while (photoFileIds.length < MAX_PHOTOS) {
+  const ids: string[] = [];
+  while (ids.length < MAX_PHOTOS) {
     const next = await conversation.wait();
 
     if (next.message?.text?.trim() === "/cancel") {
-      await setPrompt(conversation, ctx, state, "Отменено.", undefined);
+      await upsertPrompt(ctx, state, "Отменено.", undefined);
       return "cancel";
     }
-
     if (next.callbackQuery?.data === CB_CANCEL) {
       await next.answerCallbackQuery().catch(() => {});
-      await setPrompt(conversation, ctx, state, "Отменено.", undefined);
+      await upsertPrompt(ctx, state, "Отменено.", undefined);
       return "cancel";
     }
 
     if (next.message?.photo) {
       const sizes = next.message.photo;
-      const best = sizes[sizes.length - 1];
-      photoFileIds.push(best.file_id);
+      ids.push(sizes[sizes.length - 1].file_id);
 
-      // Определяем, эта картинка — продолжение текущей порции или новая.
-      // Условия новой порции:
-      //  - у фото нет media_group_id (одиночное)
-      //  - у фото media_group_id отличается от текущего
-      //  - у текущей порции уже не было media_group_id (предыдущее было одиночное)
-      const mgi = next.message.media_group_id;
-      const isNewBatch =
-        mgi === undefined ||
-        currentBatchKey === undefined ||
-        mgi !== currentBatchKey;
-
-      if (isNewBatch) {
-        // Гасим клавиатуру у предыдущего сообщения-порции, чтобы оно не
-        // отвечало на «Готово»/«Ещё» (теперь актуальные кнопки у нового).
-        if (state.id !== undefined && batchCount > 0) {
-          const oldId = state.id;
-          await conversation.external(async () => {
-            try {
-              await ctx.api.editMessageReplyMarkup(ctx.chat!.id, oldId, {
-                reply_markup: undefined,
-              });
-            } catch {
-              /* ignore */
-            }
-          });
-        }
-        // Сбрасываем state.id — следующий setPrompt пошлёт НОВОЕ сообщение.
-        state.id = undefined;
-        currentBatchKey = mgi;
-        batchCount = 0;
-      }
-
-      batchCount++;
-
-      if (photoFileIds.length >= MAX_PHOTOS) {
-        await setPrompt(
-          conversation,
+      if (ids.length >= MAX_PHOTOS) {
+        await upsertPrompt(
           ctx,
           state,
           `Готово, добавлено ${MAX_PHOTOS} фото.`,
           undefined,
         );
-        return photoFileIds;
+        return ids;
       }
-
-      const totalSuffix = batchCount === photoFileIds.length
-        ? ""
-        : ` (всего ${photoFileIds.length}/${MAX_PHOTOS})`;
-      await setPrompt(
-        conversation,
+      await upsertPrompt(
         ctx,
         state,
-        `В этой порции: ${batchCount}${totalSuffix}. Добавить ещё или закончить?`,
-        photoKb(),
+        `Фото: ${ids.length}/${MAX_PHOTOS}. Добавить ещё или закончить?`,
+        kb(),
       );
       continue;
     }
 
     if (next.callbackQuery?.data === "ap:pdone") {
       await next.answerCallbackQuery().catch(() => {});
-      if (photoFileIds.length === 0) {
-        await setPrompt(
-          conversation,
+      if (ids.length === 0) {
+        await upsertPrompt(
           ctx,
           state,
           "Нужно хотя бы одно фото. Пришли его или нажми «Отмена».",
-          new InlineKeyboard().text("Отмена", CB_CANCEL),
+          cancelKb(),
         );
         continue;
       }
-      await setPrompt(
-        conversation,
+      await upsertPrompt(
         ctx,
         state,
-        `Готово, добавлено ${photoFileIds.length} фото.`,
+        `Готово, добавлено ${ids.length} фото.`,
         undefined,
       );
-      return photoFileIds;
+      return ids;
     }
 
     if (next.callbackQuery?.data === "ap:pmore") {
@@ -411,14 +261,8 @@ async function collectPhotos(
     await next.reply("Жду фото или нажми кнопку.");
   }
 
-  await setPrompt(
-    conversation,
-    ctx,
-    state,
-    `Готово, добавлено ${photoFileIds.length} фото.`,
-    undefined,
-  );
-  return photoFileIds;
+  await upsertPrompt(ctx, state, `Готово, добавлено ${ids.length} фото.`, undefined);
+  return ids;
 }
 
 // ─── Сбор названия / цены ────────────────────────────────────────────────────
@@ -429,33 +273,30 @@ async function collectName(
   opts: { intro: string; current?: string },
 ): Promise<string | "cancel"> {
   const head = opts.current ? `Текущее: «${opts.current}»\n` : "";
-  const prompt = await ctx.reply(head + opts.intro, {
-    reply_markup: cancelOnly(),
-  });
+  const prompt = await ctx.reply(head + opts.intro, { reply_markup: cancelKb() });
 
   while (true) {
     const next = await conversation.wait();
 
     if (next.callbackQuery?.data === CB_CANCEL) {
       await next.answerCallbackQuery().catch(() => {});
-      await stripKeyboard(conversation, ctx, prompt.message_id);
+      await stripKb(ctx, prompt.message_id);
       return "cancel";
     }
-
     const text = next.message?.text?.trim();
     if (text === undefined) {
       await next.reply("Жду название текстом или нажми «Отмена».");
       continue;
     }
     if (text === "/cancel") {
-      await stripKeyboard(conversation, ctx, prompt.message_id);
+      await stripKb(ctx, prompt.message_id);
       return "cancel";
     }
     if (text.length === 0 || text.length > MAX_NAME) {
       await next.reply(`Название 1–${MAX_NAME} символов. Повтори.`);
       continue;
     }
-    await stripKeyboard(conversation, ctx, prompt.message_id);
+    await stripKb(ctx, prompt.message_id);
     return text;
   }
 }
@@ -465,38 +306,32 @@ async function collectPrice(
   ctx: AppContext,
   opts: { intro: string; current?: number },
 ): Promise<number | "cancel"> {
-  const head =
-    opts.current !== undefined ? `Текущая: ${opts.current}\n` : "";
-  const prompt = await ctx.reply(head + opts.intro, {
-    reply_markup: cancelOnly(),
-  });
+  const head = opts.current !== undefined ? `Текущая: ${opts.current}\n` : "";
+  const prompt = await ctx.reply(head + opts.intro, { reply_markup: cancelKb() });
 
   while (true) {
     const next = await conversation.wait();
 
     if (next.callbackQuery?.data === CB_CANCEL) {
       await next.answerCallbackQuery().catch(() => {});
-      await stripKeyboard(conversation, ctx, prompt.message_id);
+      await stripKb(ctx, prompt.message_id);
       return "cancel";
     }
-
     const text = next.message?.text?.trim();
     if (text === undefined) {
       await next.reply("Жду цену числом или нажми «Отмена».");
       continue;
     }
     if (text === "/cancel") {
-      await stripKeyboard(conversation, ctx, prompt.message_id);
+      await stripKb(ctx, prompt.message_id);
       return "cancel";
     }
     const parsed = Number(text.replace(/\s/g, ""));
     if (!Number.isInteger(parsed) || parsed <= 0 || parsed > MAX_PRICE) {
-      await next.reply(
-        "Цена должна быть положительным целым числом (без копеек). Повтори.",
-      );
+      await next.reply("Цена — положительное целое число (без копеек). Повтори.");
       continue;
     }
-    await stripKeyboard(conversation, ctx, prompt.message_id);
+    await stripKb(ctx, prompt.message_id);
     return parsed;
   }
 }
@@ -516,7 +351,7 @@ async function collectFeatures(
   });
   const state = { id: initial.message_id as number | undefined };
 
-  const featKb = () =>
+  const kb = () =>
     new InlineKeyboard()
       .text("➕ ещё особенность", "ap:fmore")
       .text("✅ готово", "ap:fdone")
@@ -529,14 +364,14 @@ async function collectFeatures(
 
     if (next.callbackQuery?.data === CB_CANCEL) {
       await next.answerCallbackQuery().catch(() => {});
-      await setPrompt(conversation, ctx, state, "Отменено.", undefined);
+      await upsertPrompt(ctx, state, "Отменено.", undefined);
       return "cancel";
     }
 
     if (next.message?.text) {
       const text = next.message.text.trim();
       if (text === "/cancel") {
-        await setPrompt(conversation, ctx, state, "Отменено.", undefined);
+        await upsertPrompt(ctx, state, "Отменено.", undefined);
         return "cancel";
       }
       if (text.length === 0 || text.length > MAX_FEATURE) {
@@ -546,8 +381,7 @@ async function collectFeatures(
       features.push(text);
 
       if (features.length >= MAX_FEATURES) {
-        await setPrompt(
-          conversation,
+        await upsertPrompt(
           ctx,
           state,
           `Готово, особенностей: ${MAX_FEATURES} (максимум).`,
@@ -555,26 +389,24 @@ async function collectFeatures(
         );
         return features;
       }
-
-      await setPrompt(
-        conversation,
+      await upsertPrompt(
         ctx,
         state,
         `Особенностей: ${features.length}. Ещё или закончить?`,
-        featKb(),
+        kb(),
       );
       continue;
     }
 
     if (next.callbackQuery?.data === "ap:fmore") {
-      await next.answerCallbackQuery({ text: "Жду следующую особенность" }).catch(() => {});
+      await next
+        .answerCallbackQuery({ text: "Жду следующую особенность" })
+        .catch(() => {});
       continue;
     }
-
     if (next.callbackQuery?.data === "ap:fdone") {
       await next.answerCallbackQuery().catch(() => {});
-      await setPrompt(
-        conversation,
+      await upsertPrompt(
         ctx,
         state,
         features.length === 0
@@ -588,8 +420,7 @@ async function collectFeatures(
     await next.reply("Жду текст особенности или нажми кнопку.");
   }
 
-  await setPrompt(
-    conversation,
+  await upsertPrompt(
     ctx,
     state,
     `Готово, особенностей: ${features.length}.`,
@@ -603,30 +434,22 @@ async function collectFeatures(
 async function publish(
   conversation: AppConversation,
   ctx: AppContext,
-  kbMessageId: number,
   data: { photos: string[]; name: string; price: number; features: string[] },
 ): Promise<void> {
-  await tryEditText(
-    conversation,
-    ctx,
-    ctx.chat?.id,
-    kbMessageId,
-    "Сохраняю…",
-    undefined,
-  );
+  const status = await ctx.reply("Сохраняю…");
 
   try {
+    // Всё, что НЕ ctx.api — в external (Prisma + Supabase + загрузка файлов).
+    // getFile внутри upload — one-shot, выполняется один раз (external кэширует).
     const productId = await conversation.external(async () => {
       const product = await prisma.product.create({
         data: { name: data.name, price: data.price, inStock: true },
       });
-
       for (let i = 0; i < data.photos.length; i++) {
-        const fileId = data.photos[i];
         const storagePath = `products/${product.id}/${i}.jpg`;
         const { publicUrl } = await uploadTelegramPhotoToSupabase(
           ctx.api,
-          fileId,
+          data.photos[i],
           storagePath,
         );
         await prisma.photo.create({
@@ -634,12 +457,11 @@ async function publish(
             productId: product.id,
             storagePath,
             publicUrl,
-            telegramFileId: fileId,
+            telegramFileId: data.photos[i],
             order: i,
           },
         });
       }
-
       if (data.features.length > 0) {
         await prisma.feature.createMany({
           data: data.features.map((text, order) => ({
@@ -649,60 +471,33 @@ async function publish(
           })),
         });
       }
-
       return product.id;
     });
 
-    await tryEditText(
-      conversation,
-      ctx,
-      ctx.chat?.id,
-      kbMessageId,
-      `Опубликовано. Товар #${productId}\n${data.name} — ${data.price} ${config.currency}`,
-      undefined,
-    );
+    await ctx.api
+      .editMessageText(
+        ctx.chat!.id,
+        status.message_id,
+        `Опубликовано. Товар #${productId}\n${data.name} — ${data.price} ${config.currency}`,
+      )
+      .catch(() => {});
   } catch (e) {
     console.error("[add_product] save failed:", e);
     const msg = e instanceof Error ? e.message : String(e);
-    await tryEditText(
-      conversation,
-      ctx,
-      ctx.chat?.id,
-      kbMessageId,
-      `Не получилось сохранить: ${msg}`,
-      undefined,
-    );
+    await ctx.api
+      .editMessageText(
+        ctx.chat!.id,
+        status.message_id,
+        `Не получилось сохранить: ${msg}`,
+      )
+      .catch(() => {});
   }
 }
 
 // ─── Утилиты ─────────────────────────────────────────────────────────────────
 
-function buildCaption(
-  name: string,
-  price: number,
-  features: string[],
-): string {
+function buildCaption(name: string, price: number, features: string[]): string {
   const lines = [name, `${price} ${config.currency}`];
-  if (features.length > 0) {
-    lines.push("", ...features.map((f) => `• ${f}`));
-  }
+  if (features.length > 0) lines.push("", ...features.map((f) => `• ${f}`));
   return lines.join("\n");
-}
-
-async function stripKeyboard(
-  conversation: AppConversation,
-  ctx: AppContext,
-  messageId: number,
-): Promise<void> {
-  const chatId = ctx.chat?.id;
-  if (chatId === undefined) return;
-  await conversation.external(async () => {
-    try {
-      await ctx.api.editMessageReplyMarkup(chatId, messageId, {
-        reply_markup: undefined,
-      });
-    } catch {
-      /* безразлично */
-    }
-  });
 }
