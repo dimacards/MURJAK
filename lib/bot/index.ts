@@ -1,12 +1,14 @@
 import { Bot } from "grammy";
 import {
   conversations,
+  createConversation,
   type ConversationData,
 } from "@grammyjs/conversations";
 import type { AppContext } from "./types";
 import { privateOnly, whitelist } from "./middleware";
 import { createPrismaConversationStorage } from "./storage";
 import { startHandler } from "./handlers/start";
+import { addProductConversation } from "./conversations/add-product";
 import { prisma } from "../db";
 
 const token = process.env.BOT_TOKEN;
@@ -64,7 +66,14 @@ bot.use(
   }),
 );
 
+// Регистрируем все conversation-функции по их именам.
+bot.use(createConversation(addProductConversation, "addProductConversation"));
+
 // 3. Команды (только в ЛС).
 bot.command("start", privateOnly, startHandler);
 
-// /add_product и /products будут зарегистрированы в этапах 4 и 5.
+bot.command("add_product", privateOnly, async (ctx) => {
+  await ctx.conversation.enter("addProductConversation");
+});
+
+// /products будет зарегистрирована в этапе 5.
