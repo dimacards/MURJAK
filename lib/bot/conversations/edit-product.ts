@@ -13,7 +13,7 @@ const MAX_PRICE = 100_000_000;
 const CB_CANCEL = "ep:cancel";
 
 function cancelOnly(): InlineKeyboard {
-  return new InlineKeyboard().text("❌ Отмена", CB_CANCEL);
+  return new InlineKeyboard().text("Отмена", CB_CANCEL);
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -171,21 +171,26 @@ export async function editPhotosConversation(
     { reply_markup: cancelOnly() },
   );
 
-  let promptMessageId: number | undefined = initial.message_id;
+  const state = { id: initial.message_id as number | undefined };
   const showPrompt = async (text: string, kb: InlineKeyboard | undefined) => {
     const chatId = ctx.chat?.id;
-    if (promptMessageId !== undefined && chatId !== undefined) {
-      try {
-        await ctx.api.editMessageText(chatId, promptMessageId, text, {
-          reply_markup: kb,
-        });
-        return;
-      } catch {
-        promptMessageId = undefined;
-      }
+    if (state.id !== undefined && chatId !== undefined) {
+      const currentId = state.id;
+      const ok = await conversation.external(async () => {
+        try {
+          await ctx.api.editMessageText(chatId, currentId, text, {
+            reply_markup: kb,
+          });
+          return true;
+        } catch (e) {
+          return isBenignEditError(e);
+        }
+      });
+      if (ok) return;
+      state.id = undefined;
     }
     const sent = await ctx.reply(text, { reply_markup: kb });
-    promptMessageId = sent.message_id;
+    state.id = sent.message_id;
   };
 
   const fileIds: string[] = [];
@@ -194,7 +199,7 @@ export async function editPhotosConversation(
       .text("➕ ещё фото", "ep:pmore")
       .text("✅ готово", "ep:pdone")
       .row()
-      .text("❌ Отмена", CB_CANCEL);
+      .text("Отмена", CB_CANCEL);
 
   while (fileIds.length < MAX_PHOTOS) {
     const next = await conversation.wait();
@@ -380,4 +385,14 @@ async function removeKeyboard(
   await ctx.api
     .editMessageReplyMarkup(chatId, messageId, { reply_markup: undefined })
     .catch(() => {});
+}
+
+function isBenignEditError(e: unknown): boolean {
+  const msg = String((e as Error)?.message ?? "").toLowerCase();
+  return (
+    msg.includes("not modified") ||
+    msg.includes("message to edit not found") ||
+    msg.includes("message can't be edited") ||
+    msg.includes("message_id_invalid")
+  );
 }

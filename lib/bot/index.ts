@@ -36,17 +36,30 @@ export const bot = new Bot<AppContext>(token);
 //
 // КРИТИЧНО для serverless: без него любая необработанная ошибка в хендлере
 // всплывает в webhookCallback → тот отдаёт HTTP 500 → Telegram считает
-// доставку неудачной и РЕТРАИТ апдейт снова и снова. Здесь мы ошибку
-// логируем, по возможности гасим спиннер кнопки, и НЕ пробрасываем дальше.
-bot.catch((err) => {
+// доставку неудачной и РЕТРАИТ апдейт снова и снова.
+//
+// Дополнительно: чистим BotSession для чата. Иначе сломанный conversation
+// остаётся «активным» и всё новое тоже падает — пользователь застревает.
+// После cleanup'а следующая команда (/start, /add_product, /products) начнёт
+// заново на чистом листе.
+bot.catch(async (err) => {
   const ctx = err.ctx;
   console.error(
     `[bot.catch] ошибка на update ${ctx.update.update_id}:`,
     err.error,
   );
   if (ctx.callbackQuery) {
-    ctx
-      .answerCallbackQuery({ text: "Что-то пошло не так, попробуй ещё раз." })
+    await ctx
+      .answerCallbackQuery({ text: "Что-то пошло не так. Попробуй /start." })
+      .catch(() => {});
+  } else if (ctx.chat?.type === "private") {
+    await ctx
+      .reply("Что-то пошло не так. Используй /start, чтобы начать заново.")
+      .catch(() => {});
+  }
+  if (ctx.chat?.id !== undefined) {
+    await prisma.botSession
+      .deleteMany({ where: { key: String(ctx.chat.id) } })
       .catch(() => {});
   }
 });
@@ -94,6 +107,13 @@ bot.command("add_product", privateOnly, async (ctx) => {
 });
 
 bot.command("products", privateOnly, productsCommand);
+
+// /cancel — явный escape-выход из любого диалога.
+// Сама очистка BotSession уже сделана middleware'ом выше; здесь просто
+// подтверждаем юзеру, что текущий процесс сброшен.
+bot.command("cancel", privateOnly, async (ctx) => {
+  await ctx.reply("Текущий процесс отменён. Можешь начать заново.");
+});
 
 // 4. Callback-кнопки списка/меню товара.
 bot.callbackQuery(/^pr:list$/, onProductsList);
