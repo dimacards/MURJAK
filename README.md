@@ -1,224 +1,137 @@
-# Онлайн-витрина магазина одежды + Telegram бот
+# MURJAK
 
-Универсальная связка: сайт-витрина с фильтрами, Telegram-бот для работников
-магазина и автопостинг в Telegram-канал. **Один кодовый репозиторий — несколько
-магазинов** с разными `.env` и `config.json`.
+Онлайн-витрина бренда одежды + Telegram-бот для управления товарами.
+
+- Сайт-витрина: фото, название, цена, особенности.
+- Покупка — через переход в Telegram продавца из карточки товара.
+- Бот: добавление, редактирование, наличие/нет, удаление товара.
+- Канала нет. Категорий нет. Работник один.
 
 ## Стек
 
-- **Next.js 16** (App Router, TypeScript) — сайт + API + webhook бота
-- **Supabase** — PostgreSQL + Storage для фото
-- **Prisma 7** (с `@prisma/adapter-pg`) — ORM
-- **grammY** + `@grammyjs/conversations` — Telegram бот
-- **Vercel** — хостинг
+- **Next.js 16** (App Router, TypeScript) — сайт + API + webhook бота в одном проекте.
+- **Postgres на Supabase** — БД.
+- **Supabase Storage** — фото товаров.
+- **Prisma 7** + `@prisma/adapter-pg` — ORM (session pooler 5432).
+- **grammY** + `@grammyjs/conversations` — Telegram-бот.
+- **Vercel** — хостинг.
 
----
+## Структура
 
-## Установка и запуск
+```
+/app
+  /page.tsx                    — главная (сетка карточек)
+  /products/[id]/page.tsx      — карточка товара
+  /api
+    /bot/route.ts              — webhook Telegram
+    /products/route.ts         — список товаров (JSON)
+    /products/[id]/route.ts    — один товар (JSON)
+  /layout.tsx                  — метатеги, шрифты
+/components                    — UI: ProductCard, Gallery, BuyButton, …
+/lib
+  /bot
+    /index.ts                  — инициализация бота
+    /middleware.ts             — whitelist по WORKER_TELEGRAM_ID
+    /handlers/
+      /start.ts                — /start
+      /products.ts             — /products, callback-кнопки меню товара
+    /conversations/
+      /add-product.ts          — пошаговое добавление
+      /edit-product.ts         — редактирование (name/price/photos/features)
+    /storage.ts                — Prisma-storage для @grammyjs/conversations
+    /upload.ts                 — загрузка фото из Telegram в Supabase
+  /db.ts                       — Prisma client (с retry на P1017)
+  /supabase.ts                 — Supabase Storage client
+  /config.ts                   — чтение config.json
+  /api-types.ts                — типы ProductDto / ProductListResponse
+/prisma
+  /schema.prisma               — Product, Photo, Feature, BotSession
+  /migrations
+/scripts
+  /set-bot-commands.ts         — установить меню команд бота
+  /set-webhook.ts              — поставить webhook на URL Vercel
+config.json                    — storeName, sellerUsername, currency
+.env / .env.example
+```
+
+## Доменная модель
+
+### Работник
+Один. Его `telegram_id` хранится в `.env` как `WORKER_TELEGRAM_ID`.
+Бот игнорирует всех, кроме него. Никакой таблицы Worker нет.
+
+### Product
+- `name` — название (строка)
+- `price` — целое число рублей
+- `inStock` — boolean; при `false` товар остаётся на сайте с плашкой «нет в наличии»
+- `photos` — 1..10 фото в Supabase Storage
+- `features` — упорядоченный список «особенностей»; показываются ТОЛЬКО на странице товара, не в сетке
+
+### Сайт
+- Главная: сетка карточек (фото + название + цена). Без фильтров.
+- Карточка: галерея, название, цена, список features, кнопка «Написать продавцу».
+- Если `inStock=false` — плашка «нет в наличии» и кнопка дисэйблится.
+
+### Бот
+Команды (все в ЛС):
+- `/start` — приветствие
+- `/add_product` — добавить товар (фото → название → цена → features → превью → опубликовать)
+- `/products` — список товаров с inline-меню редактирования
+
+На превью можно редактировать любое поле. На любом шаге — кнопка «❌ Отмена» или текст `/cancel`.
+
+## Локальная разработка
 
 ```bash
-git clone <repo-url>
-cd <repo-folder>
-npm install                       # postinstall запустит prisma generate
-
-cp .env.example .env              # заполни значениями (см. ниже)
-
-npx prisma migrate deploy         # применить миграции в БД
-npx tsx scripts/seed.ts           # (опц.) seed: категория «футболка» + владелец
-
-npm run dev                       # http://localhost:3000
+npm install
+npm run dev
 ```
 
-После деплоя на Vercel — установить webhook бота:
+Перед первым запуском:
 
-```bash
-npx tsx scripts/set-webhook.ts    # читает NEXT_PUBLIC_SITE_URL из .env
-```
+1. **`.env`** — скопируй `.env.example`, заполни:
+   - `BOT_TOKEN` — из @BotFather
+   - `WORKER_TELEGRAM_ID` — твой telegram_id (узнать у @userinfobot)
+   - `DATABASE_URL` / `DIRECT_URL` — Supabase session pooler (порт 5432)
+   - `SUPABASE_URL`, `SUPABASE_SERVICE_KEY`, `SUPABASE_BUCKET`
+   - `NEXT_PUBLIC_SITE_URL` — URL деплоя (для OG-тегов; локально можно оставить `http://localhost:3000`)
+2. **Bucket в Supabase Storage** — создай публичный bucket (по умолчанию `products`).
+3. **Миграции БД** — `npx prisma migrate dev` на Supabase обычно не работает (нет shadow DB). Применяем вручную:
+   ```bash
+   # сгенерировать SQL из схемы
+   npx prisma migrate diff --from-empty --to-schema prisma/schema.prisma --script -o /tmp/init.sql
 
----
+   # применить через pg-коннект
+   node -e "require('dotenv').config(); const {Client}=require('pg'); const c=new Client({connectionString:process.env.DIRECT_URL,ssl:{rejectUnauthorized:false}}); c.connect().then(()=>c.query(require('fs').readFileSync('/tmp/init.sql','utf8'))).then(()=>{console.log('OK'); c.end();})"
 
-## Переменные окружения (`.env`)
+   # пометить как применённую
+   npx prisma migrate resolve --applied 20260607_init
+   ```
+4. **`npx prisma generate`** — пересобрать клиент после изменений схемы.
 
-Секретное, **никогда не коммитим**.
+## Деплой на Vercel
 
-| Переменная | Откуда взять |
-|---|---|
-| `BOT_TOKEN` | Создать бота у [@BotFather](https://t.me/BotFather), скопировать токен |
-| `OWNER_TELEGRAM_ID` | Получить у [@userinfobot](https://t.me/userinfobot) |
-| `CHANNEL_ID` | Username канала без `@` или числовой chat_id (бот должен быть admin с правом постинга/редактирования/удаления) |
-| `SERVICE_CHAT_ID` | ID супергруппы работников (бот — admin), куда уходят копии товаров с кнопками управления |
-| `DATABASE_URL` | Supabase → Settings → Database → Connection string → **Session mode** (порт 5432). Не Transaction pooler 6543 — adapter-pg не дружит с ним |
-| `DIRECT_URL` | Та же строка, что DATABASE_URL (нужна Prisma 7 для миграций отдельно) |
-| `SUPABASE_URL` | Supabase → Settings → API → Project URL |
-| `SUPABASE_SERVICE_KEY` | Supabase → Settings → API Keys → **secret** key (`sb_secret_...`), НЕ publishable |
-| `SUPABASE_BUCKET` | Имя публичного бакета для фото (создать вручную в Supabase Storage) |
-| `NEXT_PUBLIC_SITE_URL` | Публичный URL деплоя (`https://your-shop.vercel.app`). Используется для webhook и server-side fetch |
+1. Import репозитория в [vercel.com/new](https://vercel.com/new).
+2. **Environment Variables** — те же, что в `.env` (кроме `NEXT_PUBLIC_SITE_URL`, его впиши после первого деплоя).
+3. **Deploy**.
+4. После первого деплоя — добавь `NEXT_PUBLIC_SITE_URL` в env, ещё раз Redeploy.
 
----
-
-## Настройки магазина (`config.json`)
-
-Несекретное, коммитится в репозиторий.
-
-| Поле | Значение |
-|---|---|
-| `storeName` | Название магазина (заголовок сайта, метаданные) |
-| `sellerUsername` | Telegram username продавца без `@`. Используется в кнопке «Купить в Telegram» на странице товара |
-| `channelUsername` | Username канала без `@`. Используется в футере сайта (ссылка) и в сообщении бота после публикации товара |
-| `currency` | Символ валюты — отображается в подписях постов и на сайте (по умолчанию `₽`) |
-
----
-
-## База данных
-
-- Схема — `prisma/schema.prisma` (модели: `Worker`, `Category`, `Product`, `Photo`, `BotSession`)
-- Конфиг Prisma — `prisma.config.ts` (Prisma 7+ требует TS-конфиг вместо `package.json#prisma`)
-- Клиент — `lib/db.ts`: синглтон `PrismaClient` с `@prisma/adapter-pg`,
-  TCP keepAlive (чтобы Supabase pooler не закрывал idle коннект),
-  retry-обёртка на P1017 ConnectionClosed.
-
-### Полезные команды
-
-```bash
-npx prisma migrate dev --name <name>   # создать миграцию (в dev)
-npx prisma migrate deploy              # применить в проде
-npx prisma generate                    # перегенерить клиент
-npx prisma studio                      # GUI на http://localhost:5555
-npx tsx scripts/seed.ts                # seed тестовых данных
-```
-
----
-
-## Telegram-бот
-
-Бот живёт внутри Next.js — webhook от Telegram приходит на `POST /api/bot`.
-
-### Архитектура
-
-```
-lib/bot/
-├── index.ts                — инициализация Bot, регистрация middleware и команд
-├── types.ts                — AppContext (worker + conversations flavor)
-├── middleware.ts           — whitelist + privateOnly + ownerOnly
-├── storage.ts              — Prisma-based storage для @grammyjs/conversations
-├── channel.ts              — публикация / редактирование / SOLD в канале
-├── service-chat.ts         — то же для служебного чата (с inline-кнопками)
-├── upload.ts               — pipeline: Telegram getFile → fetch → Supabase Storage
-├── telegram-utils.ts       — isNotModifiedError (катча 400 «message is not modified»)
-├── handlers/
-│   ├── start.ts            — /start (список команд для роли)
-│   ├── owner.ts            — /add_worker, /remove_worker, /list_workers,
-│   │                         /add_category, /remove_category, /list_categories
-│   ├── edit.ts             — onEditClick + onEditCancel (вход в редактирование)
-│   └── sold.ts             — onSoldClick + onRestockClick (SOLD-флоу)
-└── conversations/
-    ├── add-product.ts      — пошаговое добавление товара
-    └── edit-product.ts     — пошаговое редактирование товара
-```
-
-### Webhook
-
-После каждого деплоя на новый домен (или смены `BOT_TOKEN`):
+### Webhook Telegram
+После деплоя поставь webhook на URL Vercel:
 
 ```bash
 npx tsx scripts/set-webhook.ts
 ```
 
-Скрипт читает `NEXT_PUBLIC_SITE_URL` из `.env` и регистрирует у Telegram
-`<NEXT_PUBLIC_SITE_URL>/api/bot`. Требуется HTTPS и публичный домен (не localhost).
+Скрипт берёт `BOT_TOKEN` и `NEXT_PUBLIC_SITE_URL` из локального `.env`, шлёт `setWebhook` на Telegram API, и сразу проверяет через `getWebhookInfo`.
 
-### Privacy mode
+### Меню команд
+Один раз — для красивых подсказок в Telegram при вводе «/»:
 
-Дефолтный (ON). Кнопки в служебном чате присылают `callback_query`
-независимо от privacy mode — этого хватает. Если в будущем понадобится,
-чтобы бот видел все сообщения в группе, отключи через
-`@BotFather → /mybots → <bot> → Bot Settings → Group Privacy → Turn off`.
+```bash
+npx tsx scripts/set-bot-commands.ts
+```
 
----
+## История репозитория
 
-## Как развернуть ещё один магазин по этому же коду
-
-1. **Сделать форк репозитория** (или клонировать в новый репо). Желательно
-   менять только `.env` и `config.json` — код остаётся общим. Так фиксы и
-   фичи можно подтягивать `git pull upstream`.
-2. **Создать новый проект в Supabase** ([dashboard.supabase.com](https://supabase.com)) →
-   получить connection string (Session mode, порт 5432) и `service_role`
-   secret-key (Settings → API Keys → secret).
-3. **Создать нового бота** через [@BotFather](https://t.me/BotFather) →
-   скопировать `BOT_TOKEN`.
-4. **Создать канал** в Telegram (приватный или публичный), добавить бота
-   **админом** с правами: пост сообщений, редактирование, удаление.
-5. **Создать служебный чат** (супергруппу) в Telegram, добавить туда бота
-   (как **админа** с правом удалять сообщения — нужно для смены фото
-   товара) и всех работников магазина. Получить chat_id через [@getidsbot](https://t.me/getidsbot)
-   (id супергруппы начинается с `-100...`).
-6. **Заполнить `.env`** (см. таблицу выше) и **`config.json`**:
-   ```json
-   {
-     "storeName": "Название магазина",
-     "sellerUsername": "telegram_username_продавца",
-     "channelUsername": "telegram_username_канала",
-     "currency": "₽"
-   }
-   ```
-7. **Задеплоить на Vercel**:
-   - Import Git Repository → выбрать форк
-   - Framework Preset: **Next.js**
-   - В **Settings → Environment Variables** скопировать **все** переменные
-     из `.env` (Vercel не читает локальный `.env` — нужно вставить руками)
-   - Deploy → получить production URL
-   - Обновить `NEXT_PUBLIC_SITE_URL` (в Vercel и локально) на production URL
-     → Redeploy
-8. **Применить миграции** к новой Supabase БД:
-   ```bash
-   npx prisma migrate deploy
-   ```
-9. **Залить seed** (одна категория + владелец):
-   ```bash
-   npx tsx scripts/seed.ts
-   ```
-10. **Установить webhook бота**:
-    ```bash
-    npx tsx scripts/set-webhook.ts
-    ```
-11. **Создать публичный bucket в Supabase Storage** с именем из
-    `SUPABASE_BUCKET` (по умолчанию `product-photos`). В настройках бакета
-    включить **Public bucket = ON** (иначе картинки не отдадутся на сайт).
-12. **Проверка**:
-    - В Telegram: написать боту `/start` (от владельца) → должен ответить меню команд OWNER
-    - На сайте: открыть `https://<твой-домен>.vercel.app` → должна показаться витрина
-
-Готово. Магазины полностью независимы — каждый со своей БД, своим хранилищем,
-своим ботом и своим доменом, но из одного кодовой базы.
-
----
-
-## Этапы разработки
-
-- [x] **Этап 0** — инициализация: Next.js, структура папок, конфиги
-- [x] **Этап 1** — схема БД (Worker, Category, Product, Photo, BotSession), миграции, seed
-- [x] **Этап 2** — webhook бота, whitelist + privateOnly, `/start`, `set-webhook.ts`
-- [x] **Этап 3** — команды владельца через `@grammyjs/conversations`, middleware `ownerOnly`
-- [x] **Этап 4** — `/add_product` (фото 1..10 → категория → размер → состояние → цена → превью → публикация). Pipeline upload Telegram→Supabase Storage
-- [x] **Этап 5** — публикация товара в канал (`sendMediaGroup`), сохранение channelMessageIds
-- [x] **Этап 6** — копия в служебный чат (альбом + сообщение с кнопками «Редактировать»/«Нет в наличии»)
-- [x] **Этап 7** — редактирование товара через служебный чат. Для смены фото — `editMessageMedia` in-place при том же количестве, иначе пересоздание поста
-- [x] **Этап 8** — SOLD-флоу: «❌ Нет в наличии» / «✅ Вернуть в наличие», метка в канале и в служебном чате
-- [x] **Этап 9** — API товаров и категорий (`GET /api/products`, `/api/products/[id]`, `/api/categories`)
-- [x] **Этап 10** — функциональные страницы сайта (главная с фильтрами, страница товара) без CSS
-- [x] **Этап 11** — кнопка «Купить в Telegram» — deep link с pre-filled сообщением продавцу
-- [x] **Этап 12** — финальная универсализация: всё магазин-зависимое в `config.json` / `.env`, метаданные сайта из config, ссылка на канал, README с инструкцией про второй магазин
-
----
-
-## MVP-ограничения (документированы для будущей работы)
-
-- **Параллельное редактирование двумя работниками**: первый завершивший
-  перетирает работу второго. Нужно поле `Product.editingByWorkerId` с
-  таймаутом.
-- **`@grammyjs/conversations` storage**: Prisma-based, всё через таблицу
-  `BotSession`. На большой нагрузке (>10 одновременных диалогов) стоит
-  заменить на Redis.
-- **Supabase pooler + adapter-pg**: на бесплатном тарифе изредка случаются
-  flap'ы (P1017 ConnectionClosed). Митигировано через TCP keepAlive +
-  retry. Радикально решает Prisma Accelerate или Neon serverless адаптер.
+Этот репо начат от форка винтажного проекта (`Vintagebottest`). Винтажная история помечена веткой `vintage-archive` (на GitHub есть тоже). Чтобы удалить винтажную историю окончательно — можно squashить `main` в один коммит и форс-пушнуть, или просто удалить ветку `vintage-archive`.

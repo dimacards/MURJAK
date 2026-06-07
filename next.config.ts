@@ -4,12 +4,11 @@ const nextConfig: NextConfig = {
   images: {
     /**
      * Разрешаем next/image грузить фотографии из Supabase Storage.
-     * Wildcard `*.supabase.co` подходит под любой проект Supabase —
-     * наш кодбейс универсальный, на каждом магазине свой проект.
+     * Wildcard `*.supabase.co` подходит под любой проект Supabase.
      *
-     * Путь storage/v1/object/public/** — это публичные объекты бакета.
-     * Service-role не нужен: бакет `vintagestoretest` (и аналогичные)
-     * публичный, ссылки в Photo.publicUrl открываются без авторизации.
+     * Путь storage/v1/object/public/** — публичные объекты бакета.
+     * Service-role не нужен: бакет `products` публичный, ссылки в
+     * Photo.publicUrl открываются без авторизации.
      */
     remotePatterns: [
       {

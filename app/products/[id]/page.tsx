@@ -1,5 +1,7 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { prisma } from "@/lib/db";
+import config from "@/lib/config";
 import type { ProductDto } from "@/lib/api-types";
 import { Logo } from "@/components/Logo";
 import { Footer } from "@/components/Footer";
@@ -9,6 +11,35 @@ import styles from "./page.module.css";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+
+/**
+ * Метаданные карточки — для красивого превью при шаринге ссылки в Telegram:
+ * заголовок «<название> · MURJAK», цена в описании, первое фото как og:image.
+ */
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}): Promise<Metadata> {
+  const { id } = await params;
+  const product = await fetchProduct(id);
+  if (!product) return { title: "Товар не найден" };
+
+  const description = `${product.price} ${config.currency}${
+    product.inStock ? "" : " · нет в наличии"
+  }`;
+
+  return {
+    title: product.name,
+    description,
+    openGraph: {
+      title: product.name,
+      description,
+      type: "website",
+      images: product.photos[0] ? [{ url: product.photos[0] }] : undefined,
+    },
+  };
+}
 
 /**
  * Загружает товар напрямую через Prisma. Возвращает null если id невалидный
