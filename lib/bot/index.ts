@@ -130,24 +130,24 @@ bot.callbackQuery(/^pr:fdel:(\d+)$/, onFeatureDelete);
 bot.callbackQuery(/^pr:editname:(\d+)$/, async (ctx) => {
   const match = ctx.match as RegExpMatchArray | undefined;
   const id = Number(match?.[1]);
-  await ctx.answerCallbackQuery();
+  await ctx.answerCallbackQuery().catch(() => {});
   await ctx.conversation.enter("editNameConversation", id);
 });
 bot.callbackQuery(/^pr:editprice:(\d+)$/, async (ctx) => {
   const match = ctx.match as RegExpMatchArray | undefined;
   const id = Number(match?.[1]);
-  await ctx.answerCallbackQuery();
+  await ctx.answerCallbackQuery().catch(() => {});
   await ctx.conversation.enter("editPriceConversation", id);
 });
 bot.callbackQuery(/^pr:editphotos:(\d+)$/, async (ctx) => {
   const match = ctx.match as RegExpMatchArray | undefined;
   const id = Number(match?.[1]);
-  await ctx.answerCallbackQuery();
+  await ctx.answerCallbackQuery().catch(() => {});
   await ctx.conversation.enter("editPhotosConversation", id);
 });
 bot.callbackQuery(/^pr:fadd:(\d+)$/, async (ctx) => {
   const match = ctx.match as RegExpMatchArray | undefined;
   const id = Number(match?.[1]);
-  await ctx.answerCallbackQuery();
+  await ctx.answerCallbackQuery().catch(() => {});
   await ctx.conversation.enter("addFeatureConversation", id);
 });

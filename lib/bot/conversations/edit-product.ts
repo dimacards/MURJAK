@@ -45,7 +45,7 @@ export async function editNameConversation(
     const next = await conversation.wait();
 
     if (next.callbackQuery?.data === CB_CANCEL) {
-      await next.answerCallbackQuery();
+      await next.answerCallbackQuery().catch(() => {});
       await removeKeyboard(ctx, prompt.message_id);
       await ctx.reply("Изменение отменено.");
       return;
@@ -108,7 +108,7 @@ export async function editPriceConversation(
     const next = await conversation.wait();
 
     if (next.callbackQuery?.data === CB_CANCEL) {
-      await next.answerCallbackQuery();
+      await next.answerCallbackQuery().catch(() => {});
       await removeKeyboard(ctx, prompt.message_id);
       await ctx.reply("Изменение отменено.");
       return;
@@ -210,7 +210,7 @@ export async function editPhotosConversation(
     }
 
     if (next.callbackQuery?.data === CB_CANCEL) {
-      await next.answerCallbackQuery();
+      await next.answerCallbackQuery().catch(() => {});
       await showPrompt("Изменение отменено. Старые фото на месте.", undefined);
       return;
     }
@@ -236,7 +236,7 @@ export async function editPhotosConversation(
     }
 
     if (next.callbackQuery?.data === "ep:pdone") {
-      await next.answerCallbackQuery();
+      await next.answerCallbackQuery().catch(() => {});
       if (fileIds.length === 0) {
         await showPrompt(
           "Нужно хотя бы одно новое фото — старые не будут удалены без замены.",
@@ -248,7 +248,7 @@ export async function editPhotosConversation(
     }
 
     if (next.callbackQuery?.data === "ep:pmore") {
-      await next.answerCallbackQuery({ text: "Жду фото" });
+      await next.answerCallbackQuery({ text: "Жду фото" }).catch(() => {});
       continue;
     }
 
@@ -341,7 +341,7 @@ export async function addFeatureConversation(
     const next = await conversation.wait();
 
     if (next.callbackQuery?.data === CB_CANCEL) {
-      await next.answerCallbackQuery();
+      await next.answerCallbackQuery().catch(() => {});
       await removeKeyboard(ctx, prompt.message_id);
       await ctx.reply("Добавление отменено.");
       return;

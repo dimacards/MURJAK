@@ -108,7 +108,7 @@ export async function addProductConversation(
     const decision = await conversation.waitForCallbackQuery(
       /^ap:(pub|cancel|ename|eprice|ephotos|efeats)$/,
     );
-    await decision.answerCallbackQuery();
+    await decision.answerCallbackQuery().catch(() => {});
     const action = decision.match?.[1];
 
     if (action === "cancel") {
@@ -313,7 +313,7 @@ async function collectPhotos(
     }
 
     if (next.callbackQuery?.data === CB_CANCEL) {
-      await next.answerCallbackQuery();
+      await next.answerCallbackQuery().catch(() => {});
       await setPrompt(conversation, ctx, state, "Отменено.", undefined);
       return "cancel";
     }
@@ -382,7 +382,7 @@ async function collectPhotos(
     }
 
     if (next.callbackQuery?.data === "ap:pdone") {
-      await next.answerCallbackQuery();
+      await next.answerCallbackQuery().catch(() => {});
       if (photoFileIds.length === 0) {
         await setPrompt(
           conversation,
@@ -404,7 +404,7 @@ async function collectPhotos(
     }
 
     if (next.callbackQuery?.data === "ap:pmore") {
-      await next.answerCallbackQuery({ text: "Жду фото" });
+      await next.answerCallbackQuery({ text: "Жду фото" }).catch(() => {});
       continue;
     }
 
@@ -437,7 +437,7 @@ async function collectName(
     const next = await conversation.wait();
 
     if (next.callbackQuery?.data === CB_CANCEL) {
-      await next.answerCallbackQuery();
+      await next.answerCallbackQuery().catch(() => {});
       await stripKeyboard(conversation, ctx, prompt.message_id);
       return "cancel";
     }
@@ -475,7 +475,7 @@ async function collectPrice(
     const next = await conversation.wait();
 
     if (next.callbackQuery?.data === CB_CANCEL) {
-      await next.answerCallbackQuery();
+      await next.answerCallbackQuery().catch(() => {});
       await stripKeyboard(conversation, ctx, prompt.message_id);
       return "cancel";
     }
@@ -528,7 +528,7 @@ async function collectFeatures(
     const next = await conversation.wait();
 
     if (next.callbackQuery?.data === CB_CANCEL) {
-      await next.answerCallbackQuery();
+      await next.answerCallbackQuery().catch(() => {});
       await setPrompt(conversation, ctx, state, "Отменено.", undefined);
       return "cancel";
     }
@@ -567,12 +567,12 @@ async function collectFeatures(
     }
 
     if (next.callbackQuery?.data === "ap:fmore") {
-      await next.answerCallbackQuery({ text: "Жду следующую особенность" });
+      await next.answerCallbackQuery({ text: "Жду следующую особенность" }).catch(() => {});
       continue;
     }
 
     if (next.callbackQuery?.data === "ap:fdone") {
-      await next.answerCallbackQuery();
+      await next.answerCallbackQuery().catch(() => {});
       await setPrompt(
         conversation,
         ctx,

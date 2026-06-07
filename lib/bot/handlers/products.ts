@@ -34,7 +34,7 @@ export async function productsCommand(ctx: AppContext): Promise<void> {
 
 /** Возврат к списку из меню товара. */
 export async function onProductsList(ctx: AppContext): Promise<void> {
-  await ctx.answerCallbackQuery();
+  await ctx.answerCallbackQuery().catch(() => {});
   const products = await prisma.product.findMany({
     orderBy: { createdAt: "desc" },
     take: LIST_LIMIT,
@@ -56,7 +56,7 @@ export async function onProductsList(ctx: AppContext): Promise<void> {
 export async function onProductOpen(ctx: AppContext): Promise<void> {
   const match = ctx.match as RegExpMatchArray | undefined;
   const id = Number(match?.[1]);
-  await ctx.answerCallbackQuery();
+  await ctx.answerCallbackQuery().catch(() => {});
   await renderProductMenu(ctx, id, "edit");
 }
 
@@ -69,16 +69,18 @@ export async function onProductToggleStock(ctx: AppContext): Promise<void> {
     select: { inStock: true },
   });
   if (!p) {
-    await ctx.answerCallbackQuery({ text: "Товар не найден", show_alert: true });
+    await ctx.answerCallbackQuery({ text: "Товар не найден", show_alert: true }).catch(() => {});
     return;
   }
   await prisma.product.update({
     where: { id },
     data: { inStock: !p.inStock },
   });
-  await ctx.answerCallbackQuery({
-    text: !p.inStock ? "В наличии" : "Нет в наличии",
-  });
+  await ctx
+    .answerCallbackQuery({
+      text: !p.inStock ? "В наличии" : "Нет в наличии",
+    })
+    .catch(() => {});
   await renderProductMenu(ctx, id, "edit");
 }
 
@@ -93,7 +95,7 @@ export async function onProductDelPrompt(ctx: AppContext): Promise<void> {
     `Точно удалить товар #${id}? Это необратимо — фото тоже сотрутся.`,
     { reply_markup: kb },
   ).catch(() => {});
-  await ctx.answerCallbackQuery();
+  await ctx.answerCallbackQuery().catch(() => {});
 }
 
 /** Удалить товар: фото из Storage + каскадно из БД (Photo, Feature). */
@@ -119,14 +121,16 @@ export async function onProductDelConfirm(ctx: AppContext): Promise<void> {
     await prisma.product.delete({ where: { id } });
   } catch (e) {
     console.error("[pr:delyes] DB delete failed:", e);
-    await ctx.answerCallbackQuery({
-      text: "Не получилось удалить",
-      show_alert: true,
-    });
+    await ctx
+      .answerCallbackQuery({
+        text: "Не получилось удалить",
+        show_alert: true,
+      })
+      .catch(() => {});
     return;
   }
 
-  await ctx.answerCallbackQuery({ text: "Удалено" });
+  await ctx.answerCallbackQuery({ text: "Удалено" }).catch(() => {});
   await ctx.editMessageText(`Товар #${id} удалён.`).catch(() => {});
 }
 
@@ -134,7 +138,7 @@ export async function onProductDelConfirm(ctx: AppContext): Promise<void> {
 export async function onProductEditFeatures(ctx: AppContext): Promise<void> {
   const match = ctx.match as RegExpMatchArray | undefined;
   const id = Number(match?.[1]);
-  await ctx.answerCallbackQuery();
+  await ctx.answerCallbackQuery().catch(() => {});
   await renderFeaturesMenu(ctx, id);
 }
 
@@ -147,11 +151,11 @@ export async function onFeatureDelete(ctx: AppContext): Promise<void> {
     select: { productId: true },
   });
   if (!feat) {
-    await ctx.answerCallbackQuery({ text: "Уже удалено" });
+    await ctx.answerCallbackQuery({ text: "Уже удалено" }).catch(() => {});
     return;
   }
   await prisma.feature.delete({ where: { id: featureId } });
-  await ctx.answerCallbackQuery({ text: "Удалено" });
+  await ctx.answerCallbackQuery({ text: "Удалено" }).catch(() => {});
   await renderFeaturesMenu(ctx, feat.productId);
 }
 
