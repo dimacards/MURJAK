@@ -11,23 +11,29 @@ const handler = webhookCallback(bot, "std/http");
 /**
  * POST /api/bot — webhook от Telegram.
  *
- * Telegram шлёт сюда апдейты после `setWebhook`.
- *
  * Защита: ВСЕГДА отвечаем 200, даже если bot.process выбросил наружу
- * необработанный exception. Иначе Telegram считает update недоставленным
- * и крутит ретраи каждые ~секунды — очередь забивается, бот тормозит
- * на час-другой, пока retry-окно не истечёт. Лучше потерять один upset,
- * чем зависнуть весь поток.
+ * необработанный exception. Telegram иначе считал бы доставку неудачной
+ * и крутил ретраи, забивая очередь.
  *
- * Реальная причина ошибки — в Vercel Functions → Logs (console.error).
+ * Расширенный лог: message + stack, чтобы в Vercel → Logs можно было найти
+ * виновного по строке/файлу. До этой версии писали просто `e` — Vercel UI
+ * урезал его до префикса.
  */
 export async function POST(req: Request): Promise<Response> {
   try {
     return await handler(req);
   } catch (e) {
+    const err = e as Error & { code?: string };
     console.error(
-      "[webhook] uncaught error из bot.process — отдаю 200, чтобы не было ретраев:",
-      e,
+      "[webhook] uncaught error from bot.process — отдаю 200.",
+      "\n  name:",
+      err?.name,
+      "\n  code:",
+      err?.code,
+      "\n  message:",
+      err?.message,
+      "\n  stack:",
+      err?.stack,
     );
     return new Response("OK", { status: 200 });
   }
