@@ -290,6 +290,12 @@ async function collectPhotos(
   const initial = await ctx.reply(opts.intro, { reply_markup: cancelOnly() });
   const state = { id: initial.message_id as number | undefined };
 
+  // Per-batch UX: внутри одного альбома (media_group_id) обновляем счётчик
+  // в ОДНОМ сообщении. Новый альбом или одиночное фото — НОВОЕ сообщение
+  // с новым счётчиком этой порции. Одиночные фото = каждое своя «порция».
+  let currentBatchKey: string | undefined; // media_group_id текущей порции
+  let batchCount = 0; // сколько фото добавлено в текущую порцию
+
   const photoKb = () =>
     new InlineKeyboard()
       .text("➕ ещё фото", "ap:pmore")
@@ -317,6 +323,40 @@ async function collectPhotos(
       const best = sizes[sizes.length - 1];
       photoFileIds.push(best.file_id);
 
+      // Определяем, эта картинка — продолжение текущей порции или новая.
+      // Условия новой порции:
+      //  - у фото нет media_group_id (одиночное)
+      //  - у фото media_group_id отличается от текущего
+      //  - у текущей порции уже не было media_group_id (предыдущее было одиночное)
+      const mgi = next.message.media_group_id;
+      const isNewBatch =
+        mgi === undefined ||
+        currentBatchKey === undefined ||
+        mgi !== currentBatchKey;
+
+      if (isNewBatch) {
+        // Гасим клавиатуру у предыдущего сообщения-порции, чтобы оно не
+        // отвечало на «Готово»/«Ещё» (теперь актуальные кнопки у нового).
+        if (state.id !== undefined && batchCount > 0) {
+          const oldId = state.id;
+          await conversation.external(async () => {
+            try {
+              await ctx.api.editMessageReplyMarkup(ctx.chat!.id, oldId, {
+                reply_markup: undefined,
+              });
+            } catch {
+              /* ignore */
+            }
+          });
+        }
+        // Сбрасываем state.id — следующий setPrompt пошлёт НОВОЕ сообщение.
+        state.id = undefined;
+        currentBatchKey = mgi;
+        batchCount = 0;
+      }
+
+      batchCount++;
+
       if (photoFileIds.length >= MAX_PHOTOS) {
         await setPrompt(
           conversation,
@@ -328,11 +368,14 @@ async function collectPhotos(
         return photoFileIds;
       }
 
+      const totalSuffix = batchCount === photoFileIds.length
+        ? ""
+        : ` (всего ${photoFileIds.length}/${MAX_PHOTOS})`;
       await setPrompt(
         conversation,
         ctx,
         state,
-        `Фото ${photoFileIds.length}/${MAX_PHOTOS}. Добавить ещё или закончить?`,
+        `В этой порции: ${batchCount}${totalSuffix}. Добавить ещё или закончить?`,
         photoKb(),
       );
       continue;
