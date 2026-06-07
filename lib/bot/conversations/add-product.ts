@@ -41,6 +41,35 @@ export async function addProductConversation(
   );
 
   const photoFileIds: string[] = [];
+  // Один прогресс-месседж с кнопками, который перезаписываем по мере поступления
+  // новых фото. Иначе на альбом из 5 фото бот бы выдал 5 одинаковых сообщений.
+  let promptMessageId: number | undefined;
+
+  // Утилита: показать/обновить прогресс. Если сообщение уже есть — editText,
+  // иначе reply. При фейле edit'а (например, юзер удалил сообщение) — fallback
+  // на новое reply.
+  const showPrompt = async (text: string, withKb: boolean) => {
+    const kb = withKb
+      ? new InlineKeyboard()
+          .text("➕ ещё фото", "ap:pmore")
+          .text("✅ готово", "ap:pdone")
+      : undefined;
+    const chatId = ctx.chat?.id;
+    if (promptMessageId !== undefined && chatId !== undefined) {
+      try {
+        await ctx.api.editMessageText(chatId, promptMessageId, text, {
+          reply_markup: kb,
+        });
+        return;
+      } catch {
+        // сообщение могли удалить — перевыпустим ниже
+        promptMessageId = undefined;
+      }
+    }
+    const sent = await ctx.reply(text, { reply_markup: kb });
+    promptMessageId = sent.message_id;
+  };
+
   while (photoFileIds.length < MAX_PHOTOS) {
     const next = await conversation.wait();
 
@@ -57,18 +86,16 @@ export async function addProductConversation(
       photoFileIds.push(best.file_id);
 
       if (photoFileIds.length >= MAX_PHOTOS) {
-        await next.reply(
+        await showPrompt(
           `${MAX_PHOTOS}/${MAX_PHOTOS} — максимум. Переходим к названию.`,
+          false,
         );
         break;
       }
 
-      const kb = new InlineKeyboard()
-        .text("➕ ещё фото", "ap:pmore")
-        .text("✅ готово", "ap:pdone");
-      await next.reply(
-        `Фото ${photoFileIds.length}/${MAX_PHOTOS} получено. Добавить ещё или закончить?`,
-        { reply_markup: kb },
+      await showPrompt(
+        `Фото ${photoFileIds.length}/${MAX_PHOTOS}. Добавить ещё или закончить?`,
+        true,
       );
       continue;
     }
@@ -79,10 +106,9 @@ export async function addProductConversation(
       break;
     }
 
-    // Кнопка «ещё»
+    // Кнопка «ещё» — без нового сообщения, просто всплывашка
     if (next.callbackQuery?.data === "ap:pmore") {
-      await next.answerCallbackQuery();
-      await next.reply("Жду следующее фото.");
+      await next.answerCallbackQuery({ text: "Жду фото" });
       continue;
     }
 
@@ -149,6 +175,29 @@ export async function addProductConversation(
       "После каждой можно добавить ещё или нажать «готово».",
   );
   const features: string[] = [];
+  // Тот же приём: одна перезаписываемая подсказка с кнопками.
+  let featPromptId: number | undefined;
+  const showFeatPrompt = async (text: string, withKb: boolean) => {
+    const kb = withKb
+      ? new InlineKeyboard()
+          .text("➕ ещё особенность", "ap:fmore")
+          .text("✅ готово", "ap:fdone")
+      : undefined;
+    const chatId = ctx.chat?.id;
+    if (featPromptId !== undefined && chatId !== undefined) {
+      try {
+        await ctx.api.editMessageText(chatId, featPromptId, text, {
+          reply_markup: kb,
+        });
+        return;
+      } catch {
+        featPromptId = undefined;
+      }
+    }
+    const sent = await ctx.reply(text, { reply_markup: kb });
+    featPromptId = sent.message_id;
+  };
+
   while (features.length < MAX_FEATURES) {
     const next = await conversation.wait();
 
@@ -159,33 +208,28 @@ export async function addProductConversation(
         return;
       }
       if (text.length === 0 || text.length > MAX_FEATURE) {
-        await next.reply(
-          `Особенность 1–${MAX_FEATURE} символов. Повтори.`,
-        );
+        await next.reply(`Особенность 1–${MAX_FEATURE} символов. Повтори.`);
         continue;
       }
       features.push(text);
 
       if (features.length >= MAX_FEATURES) {
-        await next.reply(
+        await showFeatPrompt(
           `${MAX_FEATURES} — максимум. Переходим к превью.`,
+          false,
         );
         break;
       }
 
-      const kb = new InlineKeyboard()
-        .text("➕ ещё особенность", "ap:fmore")
-        .text("✅ готово", "ap:fdone");
-      await next.reply(
-        `Особенность №${features.length} добавлена. Ещё или закончить?`,
-        { reply_markup: kb },
+      await showFeatPrompt(
+        `Особенностей: ${features.length}. Ещё или закончить?`,
+        true,
       );
       continue;
     }
 
     if (next.callbackQuery?.data === "ap:fmore") {
-      await next.answerCallbackQuery();
-      await next.reply("Жду следующую особенность.");
+      await next.answerCallbackQuery({ text: "Жду следующую особенность" });
       continue;
     }
 
