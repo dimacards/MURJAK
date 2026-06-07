@@ -4,72 +4,49 @@ generator client {
 
 datasource db {
   // URL и driver adapter настраиваются в prisma.config.ts (Prisma 7+).
-  // DATABASE_URL — pooled (6543, pgbouncer) для рантайма.
-  // DIRECT_URL   — direct (5432) для миграций.
+  // DATABASE_URL = DIRECT_URL — оба указывают на Supabase session pooler 5432.
   provider = "postgresql"
-}
-
-// ─── Enums ────────────────────────────────────────────────────────────────────
-
-enum Role {
-  OWNER
-  WORKER
-}
-
-// Тип размерной сетки категории. Определяет, как вводится размер товара:
-//  - CLOTHING: фиксированные кнопки XS..XXL
-//  - SHOE: размер вводится вручную текстом (37, 42, 42.5 и т.п.)
-enum SizeType {
-  CLOTHING
-  SHOE
-}
-
-enum ProductStatus {
-  ACTIVE
-  SOLD
 }
 
 // ─── Models ───────────────────────────────────────────────────────────────────
 
-model Worker {
-  id         Int      @id @default(autoincrement())
-  telegramId BigInt   @unique
-  name       String
-  role       Role
-  createdAt  DateTime @default(now())
-
-  products Product[] @relation("CreatedBy")
-}
-
-model Category {
-  id        Int      @id @default(autoincrement())
-  name      String   @unique
-  sizeType  SizeType @default(CLOTHING) // одежда (XS..XXL) или обувь (ручной ввод)
-  createdAt DateTime @default(now())
-
-  products Product[]
-}
-
 model Product {
-  id                Int           @id @default(autoincrement())
-  categoryId        Int
-  description       String?       // короткое название товара («Cardigan Jenasis»). Отображается жирным в постах вместо/над категорией. Опциональное для backward compat со старыми товарами.
-  size              String        // «XS».. «XXL» для одежды, либо произвольный размер обуви («42»). Тип определяется Category.sizeType.
-  condition         Int           // 1..10
-  price             Int           // рубли
-  status            ProductStatus @default(ACTIVE)
-  visibleOnSite     Boolean       @default(true) // показывать на витрине сайта. При false — товар хранится в БД, может быть в канале, но на сайте скрыт. Управляется при /add_product.
-  isImported        Boolean       @default(false) // импортирован из канала (переслали боту). channelMessageIds указывают на ЧУЖИЕ сообщения, которые бот не может редактировать. На первой правке делается delete+repost, и флаг сбрасывается.
-  channelMessageIds      Int[]    // message_id-ы постов в канале (альбом = несколько сообщений). Пустой массив = в канал не публиковали.
-  serviceMessageId       Int?     // message_id текстового сообщения с кнопками «Редактировать»/«Нет в наличии» в служебном чате
-  serviceMediaMessageIds Int[]    // message_id-ы медиа-альбома в служебном чате (для пересоздания при смене фото)
-  createdById       Int
-  createdAt         DateTime      @default(now())
-  updatedAt         DateTime      @updatedAt
+  id        Int      @id @default(autoincrement())
+  name      String   // название товара, например «Cardigan Jenasis»
+  price     Int      // целое число рублей
+  inStock   Boolean  @default(true) // если false — на сайте показываем плашку «нет в наличии», но не скрываем
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
-  category  Category @relation(fields: [categoryId], references: [id], onDelete: Restrict)
-  createdBy Worker   @relation("CreatedBy", fields: [createdById], references: [id])
-  photos    Photo[]
+  photos   Photo[]
+  features Feature[]
+}
+
+model Photo {
+  id             Int      @id @default(autoincrement())
+  productId      Int
+  storagePath    String   // путь в Supabase Storage (например: products/42/0.jpg)
+  publicUrl      String   // публичная ссылка для отображения на сайте и в боте
+  telegramFileId String?  // file_id фото в Telegram (для быстрых пре-просмотров в боте без скачивания)
+  order          Int      // порядок отображения (0 = первое/главное фото)
+  createdAt      DateTime @default(now())
+
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@index([productId])
+}
+
+model Feature {
+  // «Особенность» товара — короткая строка, показывается ТОЛЬКО на открытой
+  // карточке товара, не в сетке. Работник вводит в боте по одной.
+  id        Int    @id @default(autoincrement())
+  productId Int
+  text      String
+  order     Int    // порядок ввода (0, 1, 2, …) — порядок не меняется после ввода
+
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@index([productId])
 }
 
 model BotSession {
@@ -79,16 +56,4 @@ model BotSession {
   key       String   @id
   value     String
   updatedAt DateTime @updatedAt
-}
-
-model Photo {
-  id             Int      @id @default(autoincrement())
-  productId      Int
-  storagePath    String   // путь в Supabase Storage (например: products/42/0.jpg)
-  publicUrl      String   // публичная ссылка для отображения на сайте и в боте
-  telegramFileId String?  // file_id фото в Telegram (для быстрых пере-публикаций без повторной загрузки)
-  order          Int      // порядок отображения (0 = первое/главное фото)
-  createdAt      DateTime @default(now())
-
-  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
 }
