@@ -1,44 +1,24 @@
 /**
  * DTO одного товара в публичном API. Не путать с Prisma-моделью Product —
- * это упрощённое представление для витрины: только активные товары,
- * категория плоской строкой, фото — массивом publicUrl.
+ * это упрощённое представление для витрины.
  *
- * size — строка: «XS».. «XXL» для одежды либо произвольный размер обуви.
+ * features — список «особенностей» в порядке ввода. Показываются ТОЛЬКО
+ * на странице карточки, не в сетке.
+ *
+ * inStock=false означает «нет в наличии», но товар остаётся на сайте
+ * с плашкой — не скрывается.
  */
 export type ProductDto = {
   id: number;
-  category: string;
-  description: string | null;
-  size: string;
-  condition: number;
+  name: string;
   price: number;
+  inStock: boolean;
   photos: string[];
+  features: string[];
   createdAt: string; // ISO
 };
 
 export type ProductListResponse = {
   items: ProductDto[];
   total: number;
-  page: number;
-  pageSize: number;
 };
-
-export type CategoryDto = {
-  id: number;
-  name: string;
-};
-
-/**
- * Динамический ответ /api/filters — содержит только те значения,
- * которые есть хотя бы в одном активном товаре, видимом на сайте.
- */
-export type FiltersDto = {
-  categories: CategoryDto[];
-  sizes: string[];
-};
-
-/**
- * Допустимые значения параметра `sort` в GET /api/products.
- */
-export const PRODUCT_SORT = ["new", "price_asc", "price_desc"] as const;
-export type ProductSort = (typeof PRODUCT_SORT)[number];

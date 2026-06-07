@@ -1,16 +1,15 @@
-import { webhookCallback } from "grammy";
-import { bot } from "@/lib/bot";
+// Заглушка — настоящий webhook бота будет в этапе 3, когда перепишем lib/bot
+// под новую модель. Сейчас старый lib/bot ссылается на снесённые поля Prisma
+// (category/size/condition/status), поэтому импорт оттуда уронит сборку.
+//
+// До этапа 3 webhook на этом URL не зарегистрирован у Telegram, никто сюда
+// не приходит — заглушка просто отвечает 200, чтобы маршрут существовал.
 
-// Prisma и grammY требуют Node.js runtime (не Edge).
 export const runtime = "nodejs";
-// Webhook — всегда динамический, кэшировать нельзя.
 export const dynamic = "force-dynamic";
 
-/**
- * POST /api/bot — webhook от Telegram.
- *
- * Telegram шлёт сюда апдейты после `setWebhook`.
- * grammY делает свою работу через webhookCallback с адаптером "std/http"
- * (Web standard Request/Response, который использует Next.js App Router).
- */
-export const POST = webhookCallback(bot, "std/http");
+export async function POST() {
+  return new Response("Bot webhook not configured yet (stage 3)", {
+    status: 200,
+  });
+}

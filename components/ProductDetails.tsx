@@ -4,50 +4,49 @@ import { BuyButton } from "./BuyButton";
 import styles from "./ProductDetails.module.css";
 
 /**
- * Правая колонка на странице товара: иерархичная информация о товаре.
+ * Правая колонка на странице товара.
  *
  * Структура:
- *   • Название (h1, крупно)
+ *   • Название (h1)
  *   • Цена
- *   • Список характеристик (Категория / Размер / Состояние)
- *   • Большая кнопка «Купить в Telegram»
- *   • Хелп-текст под кнопкой
+ *   • Плашка «нет в наличии» если inStock=false
+ *   • Список features (если есть)
+ *   • Кнопка «Написать продавцу» (или «Нет в наличии», если inStock=false)
  */
 export function ProductDetails({ product }: { product: ProductDto }) {
-  const title = product.description || product.category;
-
-  const rows = [
-    { label: "Категория", value: product.category },
-    { label: "Размер", value: product.size },
-    { label: "Состояние", value: `${product.condition} / 10` },
-  ];
-
   return (
     <div className={styles.root}>
-      <h1 className={styles.title}>{title}</h1>
+      <h1 className={styles.title}>{product.name}</h1>
 
       <div className={styles.price}>
         {product.price} {config.currency}
       </div>
 
-      <dl className={styles.specs}>
-        {rows.map((r) => (
-          <div key={r.label} className={styles.specRow}>
-            <dt className={styles.specLabel}>{r.label}</dt>
-            <dd className={styles.specValue}>{r.value}</dd>
-          </div>
-        ))}
-      </dl>
+      {!product.inStock && (
+        <div className={styles.outOfStock}>Нет в наличии</div>
+      )}
+
+      {product.features.length > 0 && (
+        <ul className={styles.features}>
+          {product.features.map((f, i) => (
+            <li key={i} className={styles.featureItem}>
+              {f}
+            </li>
+          ))}
+        </ul>
+      )}
 
       <div className={styles.buyWrap}>
         <BuyButton
           productId={product.id}
-          productTitle={title}
-          size={product.size}
+          productName={product.name}
           price={product.price}
+          disabled={!product.inStock}
         />
         <p className={styles.help}>
-          При нажатии вы перейдёте в Telegram для оформления покупки.
+          {product.inStock
+            ? "При нажатии вы перейдёте в Telegram для оформления покупки."
+            : "Этот товар сейчас недоступен."}
         </p>
       </div>
     </div>

@@ -3,34 +3,43 @@ import { TelegramIcon } from "./TelegramIcon";
 import styles from "./BuyButton.module.css";
 
 /**
- * Главный CTA — «Купить в Telegram». Чёрная кнопка с белой иконкой и текстом.
+ * Главный CTA — «Написать продавцу». Открывает Telegram продавца с
+ * предзаполненным сообщением «Здравствуйте! Интересует {название} ({цена})».
  *
- * Без target="_blank" — это намеренно. На iOS Safari открытие t.me в новой
- * вкладке через Universal Links вызывает петлю «This page couldn't load»
- * при возврате. Без _blank Telegram открывается прямо из текущей вкладки,
- * а «назад» нормально возвращает на страницу товара. (См. историю Этапа 11.)
+ * Без target="_blank" — намеренно. На iOS Safari открытие t.me через
+ * Universal Links в новой вкладке вызывает петлю «This page couldn't load»
+ * при возврате. Без _blank Telegram открывается прямо из текущей вкладки.
  */
 export function BuyButton({
   productId,
-  productTitle,
-  size,
+  productName,
   price,
+  disabled,
 }: {
   productId: number;
-  productTitle: string;
-  size: string;
+  productName: string;
   price: number;
+  disabled?: boolean;
 }) {
+  if (disabled) {
+    return (
+      <span className={`${styles.button} ${styles.disabled}`} aria-disabled="true">
+        <TelegramIcon size={18} />
+        <span>Нет в наличии</span>
+      </span>
+    );
+  }
+
   const message =
     `Здравствуйте! Интересует товар №${productId} ` +
-    `«${productTitle}» (размер ${size}, ${price} ${config.currency})`;
+    `«${productName}» (${price} ${config.currency})`;
 
   const href = `https://t.me/${config.sellerUsername}?text=${encodeURIComponent(message)}`;
 
   return (
     <a href={href} rel="noopener" className={styles.button}>
       <TelegramIcon size={18} />
-      <span>Купить в Telegram</span>
+      <span>Написать продавцу</span>
     </a>
   );
 }

@@ -38,40 +38,31 @@
   }
 }
 
-.specs {
-  display: flex;
-  flex-direction: column;
-  gap: 0;
+.outOfStock {
+  display: inline-block;
+  padding: 6px 12px;
+  background: rgba(0, 0, 0, 0.08);
+  color: var(--color-text);
+  font-size: 13px;
+  font-weight: 500;
+  border-radius: 4px;
+  letter-spacing: 0.01em;
+  align-self: flex-start;
+}
+
+.features {
+  list-style: none;
   margin: 0;
+  padding: 0;
   border-top: 1px solid var(--color-border);
 }
 
-.specRow {
-  display: grid;
-  /* на мобилке колонка-метка чуть уже, чтобы значению хватало места */
-  grid-template-columns: 100px 1fr;
-  gap: var(--space-md);
+.featureItem {
   padding: 12px 0;
   border-bottom: 1px solid var(--color-border);
   font-size: 14px;
-  min-width: 0;
-}
-
-@media (min-width: 480px) {
-  .specRow {
-    grid-template-columns: 130px 1fr;
-  }
-}
-
-.specLabel {
-  color: var(--color-muted);
-  min-width: 0;
-}
-
-.specValue {
+  line-height: 1.5;
   color: var(--color-text);
-  margin: 0;
-  min-width: 0;
   overflow-wrap: anywhere;
   word-break: break-word;
 }

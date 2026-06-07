@@ -6,15 +6,11 @@ export const dynamic = "force-dynamic";
 
 /**
  * GET /api/products/:id
- *
- * Возвращает один товар по id. 404 если:
- *   - товара нет в БД
- *   - товар в статусе SOLD (на сайте скрыт)
- *   - id не число
+ * 404 если товара нет в БД или id не число.
  */
 export async function GET(
   _req: Request,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: { params: Promise<{ id: string }> },
 ) {
   try {
     const { id: idStr } = await params;
@@ -26,25 +22,22 @@ export async function GET(
     const product = await prisma.product.findUnique({
       where: { id },
       include: {
-        category: true,
         photos: { orderBy: { order: "asc" } },
+        features: { orderBy: { order: "asc" } },
       },
     });
 
-    // 404 если: товара нет / он SOLD / у него снята visibleOnSite
-    // (товар существует только в канале, на сайте скрыт).
-    if (!product || product.status === "SOLD" || !product.visibleOnSite) {
+    if (!product) {
       return Response.json({ error: "Not found" }, { status: 404 });
     }
 
     const body: ProductDto = {
       id: product.id,
-      category: product.category.name,
-      description: product.description,
-      size: product.size,
-      condition: product.condition,
+      name: product.name,
       price: product.price,
+      inStock: product.inStock,
       photos: product.photos.map((p) => p.publicUrl),
+      features: product.features.map((f) => f.text),
       createdAt: product.createdAt.toISOString(),
     };
 
@@ -55,7 +48,7 @@ export async function GET(
     console.error("GET /api/products/[id] failed:", code, msg, e);
     return Response.json(
       { error: "Internal error", code, message: msg },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }

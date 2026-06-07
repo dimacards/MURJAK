@@ -1,6 +1,5 @@
 import path from "node:path";
 import { defineConfig } from "prisma/config";
-import { PrismaPg } from "@prisma/adapter-pg";
 import "dotenv/config";
 
 const directUrl = process.env.DIRECT_URL;
@@ -11,18 +10,11 @@ export default defineConfig({
   migrations: {
     path: path.join("prisma", "migrations"),
   },
+  // URL для миграций Prisma (migrate status/diff/resolve). Driver adapter
+  // в Prisma 7 в prisma.config не объявляется как тип-поле — он подключается
+  // в рантайме в lib/db.ts. Сами миграции на Supabase мы применяем напрямую
+  // через рабочий pg-коннект (migrate dev/db push не работают — нет shadow DB).
   datasource: {
     url: directUrl,
   },
-  // Driver adapter используется и в рантайме, и в миграциях. Supabase pooler
-  // требует TLS — нативный rust-engine миграций без SSL-конфига получает P1017
-  // «Server has closed the connection», поэтому идём через PrismaPg с явным ssl.
-  adapter: () =>
-    Promise.resolve(
-      new PrismaPg({
-        connectionString: directUrl,
-        ssl: { rejectUnauthorized: false },
-        keepAlive: true,
-      }),
-    ),
 });

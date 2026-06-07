@@ -11,14 +11,9 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 /**
- * Загружает товар напрямую через Prisma — без сетевого хопа в собственный
- * /api/products/[id]. На Vercel self-fetch — это вторая cold-start'ующая
- * функция в той же серверной операции: лишняя точка отказа и расход бюджета.
- *
- * Возвращает null если:
- *   - id не валидный
- *   - товара нет
- *   - товар продан (SOLD скрываем с витрины)
+ * Загружает товар напрямую через Prisma. Возвращает null если id невалидный
+ * или товара нет. inStock=false не скрывает — товар всё равно показываем
+ * с плашкой «нет в наличии».
  */
 async function fetchProduct(idStr: string): Promise<ProductDto | null> {
   const id = Number(idStr);
@@ -27,23 +22,20 @@ async function fetchProduct(idStr: string): Promise<ProductDto | null> {
   const product = await prisma.product.findUnique({
     where: { id },
     include: {
-      category: true,
       photos: { orderBy: { order: "asc" } },
+      features: { orderBy: { order: "asc" } },
     },
   });
 
-  // Скрываем со страницы: продан или вручную убран с сайта в /add_product.
-  if (!product || product.status === "SOLD" || !product.visibleOnSite)
-    return null;
+  if (!product) return null;
 
   return {
     id: product.id,
-    category: product.category.name,
-    description: product.description,
-    size: product.size,
-    condition: product.condition,
+    name: product.name,
     price: product.price,
+    inStock: product.inStock,
     photos: product.photos.map((p) => p.publicUrl),
+    features: product.features.map((f) => f.text),
     createdAt: product.createdAt.toISOString(),
   };
 }
@@ -65,9 +57,7 @@ export default async function ProductPage({
           </div>
         </header>
         <main className={`container ${styles.notFound}`}>
-          <h1 className={styles.notFoundTitle}>
-            Товар не найден или продан
-          </h1>
+          <h1 className={styles.notFoundTitle}>Товар не найден</h1>
           <Link href="/" className={styles.backLink}>
             ← Вернуться в каталог
           </Link>
@@ -92,10 +82,7 @@ export default async function ProductPage({
 
         <div className={styles.layout}>
           <div className={styles.galleryCol}>
-            <Gallery
-              photos={product.photos}
-              title={product.description || product.category}
-            />
+            <Gallery photos={product.photos} title={product.name} />
           </div>
           <div className={styles.detailsCol}>
             <ProductDetails product={product} />

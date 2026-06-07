@@ -24,3 +24,16 @@
 .button:active {
   background: var(--color-accent-hover);
 }
+
+.disabled {
+  background: var(--color-border);
+  color: var(--color-muted);
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .disabled:hover {
+    background: var(--color-border);
+  }
+}
