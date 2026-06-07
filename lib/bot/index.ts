@@ -1,57 +1,16 @@
 import { Bot } from "grammy";
 import {
   conversations,
-  createConversation,
   type ConversationData,
 } from "@grammyjs/conversations";
 import type { AppContext } from "./types";
-import { ownerOnly, privateOnly, whitelist } from "./middleware";
+import { privateOnly, whitelist } from "./middleware";
 import { createPrismaConversationStorage } from "./storage";
 import { startHandler } from "./handlers/start";
-import {
-  addWorkerConversation,
-  addCategoryConversation,
-  workersCommand,
-  onWorkerOpen,
-  onWorkerDelete,
-  onWorkerBack,
-  onWorkerAdd,
-  categoriesCommand,
-  onCategoryOpen,
-  onCategoryDelete,
-  onCategoryBack,
-  onCategoryAdd,
-  onCategoryToggleType,
-  onCategoryRename,
-  renameCategoryConversation,
-} from "./handlers/owner";
-import { addProductConversation } from "./conversations/add-product";
-import {
-  editProductConversation,
-  type EditField,
-} from "./conversations/edit-product";
-import {
-  importProductConversation,
-  type ImportEntryArgs,
-} from "./conversations/import-product";
-import {
-  productsCommand,
-  onProductsPage,
-  onProductsNoop,
-  onProductOpen,
-  onProductEdit,
-  onProductSold,
-  onProductRestock,
-  onProductDeletePrompt,
-  onProductDeleteConfirm,
-  onProductDeleteCancel,
-} from "./handlers/products";
 import { prisma } from "../db";
 
 const token = process.env.BOT_TOKEN;
-if (!token) {
-  throw new Error("BOT_TOKEN не задан в .env");
-}
+if (!token) throw new Error("BOT_TOKEN не задан в .env");
 
 export const bot = new Bot<AppContext>(token);
 
@@ -59,18 +18,13 @@ export const bot = new Bot<AppContext>(token);
 //
 // КРИТИЧНО для serverless: без него любая необработанная ошибка в хендлере
 // всплывает в webhookCallback → тот отдаёт HTTP 500 → Telegram считает
-// доставку неудачной и РЕТРАИТ апдейт снова и снова, забивая очередь
-// (особенно болезненно при max_connections=1). Типичный источник —
-// editMessageCaption/editMessageText на сообщении, которое удалили вручную
-// («message to edit not found»).
-//
-// Здесь мы ошибку логируем, по возможности гасим спиннер на кнопке
-// (answerCallbackQuery) и НЕ пробрасываем — webhook отвечает 200, ретраев нет.
+// доставку неудачной и РЕТРАИТ апдейт снова и снова. Здесь мы ошибку
+// логируем, по возможности гасим спиннер кнопки, и НЕ пробрасываем дальше.
 bot.catch((err) => {
   const ctx = err.ctx;
   console.error(
     `[bot.catch] ошибка на update ${ctx.update.update_id}:`,
-    err.error
+    err.error,
   );
   if (ctx.callbackQuery) {
     ctx
@@ -79,23 +33,19 @@ bot.catch((err) => {
   }
 });
 
-// 1. Whitelist: отсекаем чужих, кладём worker в ctx.worker.
+// 1. Whitelist: отсекаем всех, кроме WORKER_TELEGRAM_ID из .env.
 bot.use(whitelist);
 
 // 1.5. Новая команда обрывает активный conversation.
 //
-// Без этого hook'а: если юзер в середине /add_product отправит /list_workers,
-// текст «/list_workers» уходит в conversation как ввод (например, в шаг
-// description) — и команда не срабатывает.
-//
-// Лечение: ПЕРЕД conversations() middleware проверяем — если сообщение
+// Без этого hook'а: если работник в середине /add_product отправит другую
+// команду, текст «/foo» уходит в conversation как ввод вместо срабатывания
+// команды. Перед conversations() middleware проверяем — если сообщение
 // начинается с команды, удаляем активную сессию из BotSession для этого чата.
-// Тогда conversations() не найдёт активный диалог и пропустит update дальше,
-// где он попадёт на command-handler.
 bot.use(async (ctx, next) => {
   const isCommand =
     ctx.message?.entities?.some(
-      (e) => e.type === "bot_command" && e.offset === 0
+      (e) => e.type === "bot_command" && e.offset === 0,
     ) ?? false;
   if (isCommand && ctx.chat?.id !== undefined) {
     await prisma.botSession
@@ -111,157 +61,10 @@ bot.use(async (ctx, next) => {
 bot.use(
   conversations({
     storage: createPrismaConversationStorage<ConversationData>(),
-  })
+  }),
 );
 
-// Регистрируем все conversation-функции по их именам.
-bot.use(createConversation(addWorkerConversation, "addWorkerConversation"));
-bot.use(createConversation(addCategoryConversation, "addCategoryConversation"));
-bot.use(
-  createConversation(renameCategoryConversation, "renameCategoryConversation")
-);
-bot.use(createConversation(addProductConversation, "addProductConversation"));
-bot.use(
-  createConversation(editProductConversation, "editProductConversation")
-);
-bot.use(
-  createConversation(importProductConversation, "importProductConversation")
-);
-
-// 3. Команды (все требуют privateOnly — работают только в ЛС).
+// 3. Команды (только в ЛС).
 bot.command("start", privateOnly, startHandler);
 
-// /add_product — доступна WORKER и OWNER.
-// Прокидываем workerId явно — внутри conversation ctx.worker недоступен
-// (см. коммент в conversations/add-product.ts).
-bot.command("add_product", privateOnly, async (ctx) => {
-  await ctx.conversation.enter("addProductConversation", ctx.worker.id);
-});
-
-// /products [запрос] — листалка/поиск товаров прямо в боте (WORKER и OWNER).
-// Позволяет управлять товарами без служебного чата.
-bot.command("products", privateOnly, productsCommand);
-
-// OWNER-only команды.
-// /workers и /categories — единый интерфейс: список + «➕ Добавить»,
-// клик по элементу → удалить/назад. Добавление запускается из кнопки внутри.
-bot.command("workers", privateOnly, ownerOnly, workersCommand);
-bot.command("categories", privateOnly, ownerOnly, categoriesCommand);
-
-// 4. Callback-кнопки управления работниками и категориями (OWNER-only).
-bot.callbackQuery(/^w_open:(\d+)$/, ownerOnly, onWorkerOpen);
-bot.callbackQuery(/^w_del:(\d+)$/, ownerOnly, onWorkerDelete);
-bot.callbackQuery(/^w_back$/, ownerOnly, onWorkerBack);
-bot.callbackQuery(/^w_add$/, ownerOnly, onWorkerAdd);
-bot.callbackQuery(/^c_open:(\d+)$/, ownerOnly, onCategoryOpen);
-bot.callbackQuery(/^c_del:(\d+)$/, ownerOnly, onCategoryDelete);
-bot.callbackQuery(/^c_ttype:(\d+)$/, ownerOnly, onCategoryToggleType);
-bot.callbackQuery(/^c_rename:(\d+)$/, ownerOnly, onCategoryRename);
-bot.callbackQuery(/^c_back$/, ownerOnly, onCategoryBack);
-bot.callbackQuery(/^c_add$/, ownerOnly, onCategoryAdd);
-
-// 5. Меню редактирования полей (вызывается из карточки /products):
-//    editfield:{id}:{f} — выбор поля → вход в editProductConversation.
-//    editcancel:{id}    — закрытие меню (никаких side-эффектов).
-bot.callbackQuery(
-  /^editfield:(\d+):(photos|category|size|condition|price|description)$/,
-  async (ctx) => {
-    const match = ctx.match as RegExpMatchArray | undefined;
-    const productId = Number(match?.[1]);
-    const field = match?.[2] as EditField;
-    await ctx.answerCallbackQuery();
-    await ctx.conversation.enter(
-      "editProductConversation",
-      productId,
-      field
-    );
-  }
-);
-
-bot.callbackQuery(/^editcancel:(\d+)$/, async (ctx) => {
-  await ctx.answerCallbackQuery();
-  // Просто гасим спиннер, меню можно оставить — пользователь сам закроет
-  // или нажмёт другую кнопку. Никакой работы в БД/каналах нет.
-});
-
-// 6. Кнопки листалки /products (управление товарами в ЛС бота).
-bot.callbackQuery(/^plist:(\d+)$/, onProductsPage);
-bot.callbackQuery(/^pnoop$/, onProductsNoop);
-bot.callbackQuery(/^popen:(\d+)$/, onProductOpen);
-bot.callbackQuery(/^pedit:(\d+)$/, onProductEdit);
-bot.callbackQuery(/^psold:(\d+)$/, onProductSold);
-bot.callbackQuery(/^prestk:(\d+)$/, onProductRestock);
-bot.callbackQuery(/^pdel:(\d+)$/, onProductDeletePrompt);
-bot.callbackQuery(/^pdely:(\d+)$/, onProductDeleteConfirm);
-bot.callbackQuery(/^pdeln$/, onProductDeleteCancel);
-
-// 7. Импорт уже опубликованных постов из канала.
-//
-// Юзер пересылает пост (фото или альбом) из нашего канала в ЛС боту.
-// Если перессылка из НАШЕГО канала — стартуем importProductConversation,
-// прокинув file_id, caption и оригинальный message_id. Дальше conversation
-// сам собирает остальные фото альбома и проводит импорт.
-//
-// Этот handler ловит только когда юзер НЕ в активной conversation
-// (иначе сообщение уйдёт в неё). Чтобы /add_product не сломался — фото
-// внутри него попадают в add-product-conversation, а не сюда.
-bot.on("message:photo", privateOnly, async (ctx) => {
-  const fwd = ctx.message.forward_origin;
-  if (!fwd || fwd.type !== "channel") {
-    // Не из канала — игнорируем. Не отвечаем чтобы не спамить.
-    return;
-  }
-
-  // Проверка: переслано именно из нашего канала.
-  // CHANNEL_ID может быть username без @ или числовой chat_id.
-  const channelId = process.env.CHANNEL_ID;
-  if (!channelId) {
-    await ctx.reply(
-      "Импорт недоступен: CHANNEL_ID не задан в настройках бота."
-    );
-    return;
-  }
-
-  const fwdChat = fwd.chat;
-  const isOurChannel =
-    String(fwdChat.id) === channelId ||
-    String(fwdChat.id) === channelId.replace(/^@/, "") ||
-    ("username" in fwdChat &&
-      fwdChat.username === channelId.replace(/^@/, ""));
-  if (!isOurChannel) {
-    await ctx.reply(
-      "Бот принимает к импорту только посты из нашего канала. " +
-        "Этот пост из другого канала — импорт невозможен."
-    );
-    return;
-  }
-
-  // Защита от дублей: если этот message_id из канала УЖЕ импортирован —
-  // не стартуем повторную conversation. Без этой проверки альбом из 10 фото
-  // мог в гоночных условиях стартовать несколько conversation одновременно
-  // (если первая ещё не успела persist'нуть state в BotSession к моменту
-  // прихода следующего webhook'а).
-  const existing = await prisma.product.findFirst({
-    where: { channelMessageIds: { has: fwd.message_id } },
-    select: { id: true },
-  });
-  if (existing) {
-    // Молча игнорируем: если это альбом, остальные фото тоже придут,
-    // не хочу спамить «уже импортировано» × N раз.
-    return;
-  }
-
-  // Берём самую крупную версию фото.
-  const sizes = ctx.message.photo;
-  const best = sizes[sizes.length - 1];
-
-  const args: ImportEntryArgs = {
-    workerId: ctx.worker.id,
-    firstFileId: best.file_id,
-    caption: ctx.message.caption ?? undefined,
-    originalMessageId: fwd.message_id,
-    mediaGroupId: ctx.message.media_group_id,
-  };
-
-  await ctx.conversation.enter("importProductConversation", args);
-});
+// /add_product и /products будут зарегистрированы в этапах 4 и 5.

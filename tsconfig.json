@@ -32,8 +32,6 @@
   ],
   "exclude": [
     "node_modules",
-    "lib/bot",
-    "app/api/bot",
     "scripts"
   ]
 }

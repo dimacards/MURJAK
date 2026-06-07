@@ -1,18 +1,17 @@
 import type { Context } from "grammy";
-import type { Worker } from "@prisma/client";
 import type { Conversation, ConversationFlavor } from "@grammyjs/conversations";
 
 /**
  * Расширенный контекст grammY:
- * - `worker` устанавливается middleware `whitelist` (см. middleware.ts).
- * - `conversation` добавляется плагином @grammyjs/conversations (для пошаговых диалогов).
+ * - `conversation` добавляется плагином @grammyjs/conversations для пошаговых диалогов.
  *
- * Эквивалент `ctx.state.worker` из Express-подобных фреймворков — в grammY
- * `state` не зарезервирован, поэтому кладём worker напрямую в `ctx`.
+ * Без таблицы Worker: единственный авторизованный пользователь — это
+ * WORKER_TELEGRAM_ID из .env. Whitelist-middleware просто сравнивает
+ * `ctx.from.id` с этим числом и ничего не кладёт в контекст.
  */
-export type AppContext = ConversationFlavor<Context & { worker: Worker }>;
+export type AppContext = ConversationFlavor<Context>;
 
 /**
- * Тип конversation handler-функции (используется в lib/bot/handlers/owner.ts).
+ * Тип conversation-handler функции (для будущих /add_product, /products).
  */
 export type AppConversation = Conversation<AppContext, AppContext>;

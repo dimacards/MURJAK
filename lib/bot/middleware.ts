@@ -1,84 +1,60 @@
 import type { NextFunction } from "grammy";
-import { prisma } from "../db";
 import type { AppContext } from "./types";
 
 /**
- * Whitelist: на каждое обновление проверяем, есть ли отправитель в таблице Worker.
+ * Telegram ID единственного работника-владельца. Берётся из .env при старте.
+ * Если переменная не задана — бросаем при загрузке модуля: лучше упасть
+ * на старте, чем впустить любого в управление магазином.
+ */
+function getWorkerTelegramId(): bigint {
+  const raw = process.env.WORKER_TELEGRAM_ID;
+  if (!raw) throw new Error("WORKER_TELEGRAM_ID не задан в .env");
+  const id = BigInt(raw);
+  if (id <= BigInt(0)) {
+    throw new Error(`WORKER_TELEGRAM_ID невалидный: «${raw}»`);
+  }
+  return id;
+}
+
+const WORKER_TELEGRAM_ID = getWorkerTelegramId();
+
+/**
+ * Whitelist: пропускаем дальше только работника (его telegram_id из .env).
+ * Чужие сообщения в ЛС — отвечаем «нет доступа». В групповых чатах и
+ * canal-постах — молча игнор.
  *
- * - Если работника НЕТ:
- *     * в личке — отвечаем, что доступа нет.
- *     * при нажатии кнопки (callback_query) — отвечаем «Нет доступа» без alert.
- *     * в группе для обычных сообщений — молча игнорируем.
- *   Управление дальше НЕ передаём.
- *
- * - Если работник найден — кладём его в ctx.worker и передаём управление.
+ * Callback-кнопки от чужих тоже отсекаем (хотя в норме они никому, кроме
+ * работника, не отправляются — оставляем как защиту от подделки).
  */
 export async function whitelist(
   ctx: AppContext,
-  next: NextFunction
+  next: NextFunction,
 ): Promise<void> {
   const from = ctx.from;
-  if (!from) {
-    // Channel posts, etc. — у них нет from. Игнорируем.
-    return;
-  }
+  if (!from) return; // channel posts и т.п.
 
-  const worker = await prisma.worker.findUnique({
-    where: { telegramId: BigInt(from.id) },
-  });
-
-  if (!worker) {
+  if (BigInt(from.id) !== WORKER_TELEGRAM_ID) {
     if (ctx.callbackQuery) {
-      await ctx.answerCallbackQuery({
-        text: "Нет доступа",
-        show_alert: false,
-      });
+      await ctx.answerCallbackQuery({ text: "Нет доступа", show_alert: false });
     } else if (ctx.chat?.type === "private") {
       await ctx.reply(
-        "Извини, я тебя не знаю. Доступ к боту только у работников магазина."
+        "Извини, я тебя не знаю. Этот бот — для управления товарами магазина.",
       );
     }
-    // В групповом чате обычные сообщения от посторонних — молча игнорируем.
     return;
   }
 
-  ctx.worker = worker;
   await next();
 }
 
 /**
  * privateOnly: пропускает только сообщения из приватных чатов.
- * Используется для команд (/start, /add_product и т.д.) — они работают только в ЛС.
+ * Команды работают только в ЛС (бот не предназначен для групп).
  */
 export async function privateOnly(
   ctx: AppContext,
-  next: NextFunction
+  next: NextFunction,
 ): Promise<void> {
   if (ctx.chat?.type !== "private") return;
-  await next();
-}
-
-/**
- * ownerOnly: пропускает только если ctx.worker.role === "OWNER".
- * Ставится ПОСЛЕ whitelist (тот гарантирует наличие ctx.worker).
- *
- * Для обычных сообщений отвечает текстом, для callback_query — через
- * answerCallbackQuery (чтобы не вешать спиннер «бот думает»).
- */
-export async function ownerOnly(
-  ctx: AppContext,
-  next: NextFunction
-): Promise<void> {
-  if (ctx.worker.role !== "OWNER") {
-    if (ctx.callbackQuery) {
-      await ctx.answerCallbackQuery({
-        text: "Это команда только для владельца.",
-        show_alert: false,
-      });
-    } else {
-      await ctx.reply("Это команда только для владельца.");
-    }
-    return;
-  }
   await next();
 }
