@@ -197,6 +197,12 @@ async function collectPhotos(
       .row()
       .text("Отмена", CB_CANCEL);
 
+  // Per-batch: внутри одного альбома (общий media_group_id) обновляем ОДНО
+  // сообщение счётчиком. Новый альбом или отдельно присланное фото — НОВОЕ
+  // сообщение. Одиночные фото (без media_group_id) каждое = своя порция.
+  let batchKey: string | undefined;
+  let batchCount = 0;
+
   const ids: string[] = [];
   while (ids.length < MAX_PHOTOS) {
     const next = await conversation.wait();
@@ -215,6 +221,21 @@ async function collectPhotos(
       const sizes = next.message.photo;
       ids.push(sizes[sizes.length - 1].file_id);
 
+      const mgi = next.message.media_group_id;
+      const isNewBatch =
+        mgi === undefined || batchKey === undefined || mgi !== batchKey;
+      if (isNewBatch) {
+        // Снимаем кнопки со старого сообщения-порции и заставляем upsertPrompt
+        // отправить НОВОЕ (state.id = undefined).
+        if (state.id !== undefined && batchCount > 0) {
+          await stripKb(ctx, state.id);
+        }
+        state.id = undefined;
+        batchKey = mgi;
+        batchCount = 0;
+      }
+      batchCount++;
+
       if (ids.length >= MAX_PHOTOS) {
         await upsertPrompt(
           ctx,
@@ -224,10 +245,12 @@ async function collectPhotos(
         );
         return ids;
       }
+      const suffix =
+        batchCount === ids.length ? "" : ` (всего ${ids.length}/${MAX_PHOTOS})`;
       await upsertPrompt(
         ctx,
         state,
-        `Фото: ${ids.length}/${MAX_PHOTOS}. Добавить ещё или закончить?`,
+        `Фото в этой порции: ${batchCount}${suffix}. Добавить ещё или закончить?`,
         kb(),
       );
       continue;
