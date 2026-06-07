@@ -57,22 +57,31 @@ function createClient() {
   const url = process.env.DATABASE_URL;
   if (!url) throw new Error("DATABASE_URL не задан");
 
-  // Supabase pooler требует TLS. Без явного ssl в config pg отдаст plain TCP,
+  // Supabase pooler требует TLS. Без явного ssl в config pg отдаёт plain TCP,
   // на котором сервер вешает соединение → P1017 «ConnectionClosed».
   // rejectUnauthorized: false — Supabase использует свой/прокси-сертификат,
   // strict-валидация бессмысленна для serverless без правильных CA.
   //
-  // keepAlive + keepAliveInitialDelay: TCP keepalive-пакеты каждые ~10 секунд,
-  // чтобы Supabase pooler не закрывал idle-коннект между запросами. Без этого
-  // на серверлес-инстансе, который висит warm, коннект протухает за ~минуту,
-  // и следующий запрос падает 500 (P1017 ConnectionClosed). Singleton-клиент
-  // не умеет сам пересоздать pg.Pool, поэтому только передеплой "лечит".
+  // max: 1 — КРИТИЧНО для serverless на Supabase free tier.
+  // Session pooler там ограничен 15 одновременных коннектов.
+  // По умолчанию pg.Pool открывает до 10 коннектов ПЕР-Lambda. Если Vercel
+  // развёрнет 2-3 концурентных функции (особенно на альбом фото — 10
+  // webhook'ов в секунду), пул мгновенно исчерпывается:
+  //   Error [DriverAdapterError]: (EMAXCONNSESSION) max clients reached
+  // Дальше каждая лямбда ждёт коннект до 10с и умирает от Vercel-таймаута.
+  // С max: 1 каждая лямбда держит ровно 1 коннект — 15 концурентных
+  // лямбд = 15 коннектов, ровно лимит. Внутри лямбды запросы сериализуются,
+  // но это копейки (миллисекунды на запрос).
+  //
+  // keepAlive + idle timeout: TCP keepalive чтобы Supabase pooler не убил
+  // idle-коннект между запросами на warm-лямбде; idle: 5 секунд — после
+  // паузы освобождаем коннект для других лямбд.
   const adapter = new PrismaPg({
     connectionString: url,
     ssl: { rejectUnauthorized: false },
+    max: 1,
+    idleTimeoutMillis: 5000,
     keepAlive: true,
-    // keepAliveInitialDelay есть в pg-нативном API, но в @types/pg его пока нет —
-    // cast'имся через any только на этот ключ.
     ...({ keepAliveInitialDelay: 10_000 } as Record<string, number>),
   });
 
