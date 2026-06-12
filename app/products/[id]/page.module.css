@@ -1,7 +1,14 @@
 .main {
   position: relative;
-  min-height: 100svh;
   background: #000;
+}
+
+/* Десктоп: всё умещается в один экран, скролла нет */
+@media (min-width: 768px) {
+  .main {
+    height: 100svh;
+    overflow: hidden;
+  }
 }
 
 .back {
@@ -23,58 +30,54 @@
   }
 }
 
-/* ===== Медиа-блок: карусель + видео, без отступа, одной высоты ===== */
+/* ===== Медиа-блок ===== */
+/* Стандарт: фото 1:1 (квадратная галерея), видео вертикальное 9:16.
+   На десктопе оба на всю высоту экрана, вплотную, по центру. */
 .mediaRow {
-  display: grid;
-  grid-template-columns: 1fr;
+  display: flex;
+  flex-direction: column;
   gap: 0;
-  min-width: 0;
-}
-
-.mediaRow > * {
   min-width: 0;
 }
 
 @media (min-width: 768px) {
   .mediaRow {
-    grid-template-columns: 1fr 1fr;
-    /* обе колонки — одинаковой высоты */
-    height: min(82svh, 900px);
-  }
-}
-
-/* Видео нет — карусель одна на всю ширину (ограничим по центру) */
-.mediaRowSingle {
-  grid-template-columns: 1fr;
-}
-
-@media (min-width: 768px) {
-  .mediaRowSingle {
-    max-width: 900px;
-    margin: 0 auto;
-    width: 100%;
+    flex-direction: row;
+    justify-content: center;
+    height: 100%;
   }
 }
 
 .galleryCol {
   position: relative;
-  height: 60svh;
+  width: 100%;
 }
 
 @media (min-width: 768px) {
   .galleryCol {
+    /* ширина колонки = высоте большого фото (экран минус ряд миниатюр
+       ~86px) → фото получается квадратным 1:1 */
+    width: calc(100svh - 86px);
+    flex-shrink: 0;
     height: 100%;
   }
 }
 
 .videoCol {
   position: relative;
-  height: 60svh;
+  width: 100%;
+  display: flex;
+  justify-content: center;
+  background: #000;
 }
 
 @media (min-width: 768px) {
   .videoCol {
+    width: auto;
     height: 100%;
+    /* вертикальное видео: ширина = высота × 9/16 */
+    aspect-ratio: 9 / 16;
+    flex-shrink: 0;
   }
 }
 
@@ -84,20 +87,40 @@
   object-fit: cover;
 }
 
-/* ===== Инфо-карточка («игральная карта») — перекрывает медиа ===== */
+/* мобилка: видео не выше 70% экрана (вертикальное 9:16 от полной ширины
+   было бы слишком высоким) */
+@media (max-width: 767px) {
+  .videoCol {
+    max-height: 70svh;
+    overflow: hidden;
+  }
+  .video {
+    aspect-ratio: 9 / 16;
+    max-height: 70svh;
+    width: auto;
+    max-width: 100%;
+  }
+}
+
+/* ===== Инфо-карточка («игральная карта») ===== */
+/* Десктоп: прикреплена к нижней грани экрана, перекрывает медиа. */
 .cardWrap {
   position: relative;
   z-index: 2;
   display: flex;
   justify-content: center;
-  padding: 0 var(--space-md) var(--space-2xl);
-  /* наезжает на фото/видео */
+  padding: 0 var(--space-md) var(--space-lg);
   margin-top: -72px;
 }
 
 @media (min-width: 768px) {
   .cardWrap {
-    margin-top: -140px;
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    margin-top: 0;
+    padding: 0;
   }
 }
 

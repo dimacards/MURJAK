@@ -9,30 +9,32 @@
 .kindBtn {
   padding: 0;
   line-height: 0;
-  opacity: 0.35;
+  /* невыбранная иконка — приглушена */
+  opacity: 0.3;
   transition: opacity 0.15s ease;
 }
 
 @media (hover: hover) and (pointer: fine) {
   .kindBtn:hover {
-    opacity: 0.7;
+    opacity: 0.6;
   }
 }
 
+/* выбранная — белая, полная яркость */
 .kindBtnActive,
 .kindBtnActive:hover {
   opacity: 1;
 }
 
 .kindIcon {
-  width: 56px;
-  height: 56px;
+  width: 28px;
+  height: 28px;
 }
 
 @media (min-width: 768px) {
   .kindIcon {
-    width: 75px;
-    height: 75px;
+    width: 38px;
+    height: 38px;
   }
 }
 

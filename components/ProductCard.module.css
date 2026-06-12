@@ -10,8 +10,8 @@
 .imageWrap {
   position: relative;
   width: 100%;
-  /* пропорции карточки из макета: 448×560 */
-  aspect-ratio: 4 / 5;
+  /* стандарт фото — квадрат 1:1 */
+  aspect-ratio: 1 / 1;
   overflow: hidden;
 }
 

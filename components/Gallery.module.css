@@ -4,15 +4,16 @@
   gap: 0;
   min-width: 0;
   max-width: 100%;
-  /* галерея заполняет колонку медиа-блока целиком (высота = высоте видео) */
+  /* галерея заполняет колонку медиа-блока целиком */
   height: 100%;
 }
 
-/* === Большое фото === */
+/* === Большое фото (стандарт 1:1) === */
+/* Квадратность обеспечивает родитель: ширина .galleryCol на десктопе
+   равна высоте main (100svh - ряд миниатюр). На мобилке — aspect-ratio. */
 .main {
   position: relative;
   width: 100%;
-  /* занимает всю высоту, оставшуюся после thumbs */
   flex: 1;
   min-height: 0;
   background: #0a0a0a;
@@ -21,6 +22,13 @@
   /* touch-action: pan-y — браузер сам берёт вертикальные жесты под скролл,
      а нам отдаёт только горизонтальные. */
   touch-action: pan-y;
+}
+
+@media (max-width: 767px) {
+  .main {
+    flex: none;
+    aspect-ratio: 1 / 1;
+  }
 }
 
 .mainImage {
@@ -106,6 +114,7 @@
 /* === Ряд thumbnails === */
 .thumbs {
   display: flex;
+  justify-content: center;
   gap: var(--space-sm);
   overflow-x: auto;
   scroll-snap-type: x mandatory;
@@ -113,6 +122,10 @@
   scrollbar-width: none;
   padding: var(--space-sm) 0;
   flex-shrink: 0;
+  /* width:0 + min-width:100% — ряд миниатюр не должен распирать колонку
+     шире квадратного фото (ширину колонки задаёт только .main) */
+  width: 0;
+  min-width: 100%;
 }
 
 .thumbs::-webkit-scrollbar {

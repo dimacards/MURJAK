@@ -36,8 +36,8 @@ export function ProductGrid({ items }: { items: ProductDto[] }) {
           <Image
             src="/brand/icon-item.svg"
             alt=""
-            width={75}
-            height={75}
+            width={38}
+            height={38}
             className={styles.kindIcon}
           />
         </button>
@@ -51,8 +51,8 @@ export function ProductGrid({ items }: { items: ProductDto[] }) {
           <Image
             src="/brand/icon-model.svg"
             alt=""
-            width={75}
-            height={75}
+            width={38}
+            height={38}
             className={styles.kindIcon}
           />
         </button>

@@ -131,8 +131,6 @@ export default async function ProductPage({
           <ProductDetails product={product} />
         </div>
       </main>
-
-      <Footer />
     </>
   );
 }
