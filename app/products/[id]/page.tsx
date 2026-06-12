@@ -96,6 +96,12 @@ export default async function ProductPage({
 
   const hasVideo = !!product.videoUrl;
 
+  // Порядок в карусельке: сначала фотографии одежды (ITEM), потом модели.
+  const orderedPhotos = [
+    ...product.photos.filter((p) => p.kind === "ITEM"),
+    ...product.photos.filter((p) => p.kind === "MODEL"),
+  ];
+
   return (
     <>
       <main className={styles.main}>
@@ -106,12 +112,9 @@ export default async function ProductPage({
         <div className={styles.mediaRow}>
           <div className={styles.galleryCol}>
             <Gallery
-              photos={product.photos.map((p) => p.url)}
+              photos={orderedPhotos.map((p) => p.url)}
               title={product.name}
             />
-          </div>
-          <div className={styles.cardWrap}>
-            <ProductDetails product={product} />
           </div>
           {hasVideo && (
             <div className={styles.videoCol}>
@@ -127,6 +130,8 @@ export default async function ProductPage({
             </div>
           )}
         </div>
+
+        <ProductDetails product={product} />
       </main>
     </>
   );

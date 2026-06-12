@@ -32,9 +32,9 @@
 }
 
 /* ===== Раскладка ===== */
-/* Десктоп: фото слева и видео справа, равноудалены от краёв и друг от
-   друга (space-evenly), карточка информации — ПОВЕРХ них, прижата к
-   верху по центру. */
+/* Десктоп: видео справа (9:16, во всю высоту — как было), фото заполняет
+   ВСЮ оставшуюся ширину страницы, высота — высота страницы.
+   Блок информации — отдельный fixed-элемент (см. ProductDetails). */
 .mediaRow {
   display: flex;
   flex-direction: column;
@@ -45,49 +45,31 @@
 @media (min-width: 768px) {
   .mediaRow {
     flex-direction: row;
-    justify-content: space-evenly;
     height: 100%;
   }
 }
 
-/* Карусель слева — размер прежний (~38% ширины экрана, во всю высоту) */
+/* Фото — fill всей оставшейся ширины */
 .galleryCol {
   position: relative;
   width: 100%;
 }
 
+@media (max-width: 767px) {
+  .galleryCol {
+    aspect-ratio: 1 / 1;
+  }
+}
+
 @media (min-width: 768px) {
   .galleryCol {
-    width: 38vw;
-    flex-shrink: 0;
+    flex: 1;
     min-width: 0;
     height: 100%;
   }
 }
 
-/* Карточка информации — поверх медиа, наверху по центру, широкая */
-.cardWrap {
-  position: relative;
-  z-index: 2;
-  display: flex;
-  justify-content: center;
-  padding: var(--space-md);
-}
-
-@media (min-width: 768px) {
-  .cardWrap {
-    position: absolute;
-    top: var(--space-lg);
-    left: 50%;
-    transform: translateX(-50%);
-    width: min(640px, 60vw);
-    max-height: calc(100svh - var(--space-lg) * 2);
-    padding: 0;
-    overflow-y: auto;
-  }
-}
-
-/* Видео справа — вертикальное 9:16 на всю высоту */
+/* Видео справа — вертикальное 9:16 на всю высоту (как было) */
 .videoCol {
   position: relative;
   width: 100%;

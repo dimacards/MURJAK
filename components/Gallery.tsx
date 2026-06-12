@@ -5,16 +5,13 @@ import Image from "next/image";
 import styles from "./Gallery.module.css";
 
 /**
- * Галерея товара. Большое фото сверху + горизонтальный ряд thumbnails снизу.
+ * Галерея товара: большое фото заполняет весь контейнер (cover).
  *
- * Управление:
- *   • клик по thumbnail → большое фото меняется
- *   • стрелки ←/→ под большим фото (полупрозрачные круги)
- *   • клавиатура: стрелки ←/→ листают
- *   • thumbnails — scroll-snap-x, можно свайпать пальцем на мобилке
- *   • свайп пальцем по большому фото — листает (touchstart/touchend)
+ * Миниатюры — маленькие, вертикальной колонкой слева ПОВЕРХ фото,
+ * над каждой её номер. В покое полупрозрачные; hover — увеличиваются
+ * и становятся непрозрачными; активная — непрозрачная с белой рамкой.
  *
- * Изображения — next/image. priority=true на первое фото (LCP товара).
+ * Управление: клик по миниатюре, клавиатура ←/→, свайп на тач-экране.
  */
 export function Gallery({
   photos,
@@ -24,7 +21,6 @@ export function Gallery({
   title: string;
 }) {
   const [index, setIndex] = useState(0);
-  const thumbsRef = useRef<HTMLDivElement>(null);
   const total = photos.length;
 
   const goPrev = () => setIndex((i) => (i - 1 + total) % total);
@@ -44,25 +40,7 @@ export function Gallery({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [total]);
 
-  // Когда индекс меняется — подскролливаем активный thumbnail в видимую зону.
-  useEffect(() => {
-    const wrap = thumbsRef.current;
-    if (!wrap) return;
-    const active = wrap.querySelector<HTMLButtonElement>(
-      `[data-thumb-index="${index}"]`,
-    );
-    active?.scrollIntoView({
-      behavior: "smooth",
-      block: "nearest",
-      inline: "nearest",
-    });
-  }, [index]);
-
-  // Свайп пальцем по большому фото.
-  //
-  // Логика: на touchstart запоминаем X и Y. На touchend смотрим dx/dy.
-  // Если |dx| > 50px и явно горизонтальный жест (|dx| > |dy|) — листаем.
-  // Иначе игнор — значит это вертикальный скролл страницы.
+  // Свайп пальцем по фото: |dx| > 50px и горизонтальный жест — листаем.
   const touchRef = useRef<{ x: number; y: number } | null>(null);
   const onTouchStart = (e: React.TouchEvent) => {
     const t = e.touches[0];
@@ -86,69 +64,42 @@ export function Gallery({
   }
 
   return (
-    <div className={styles.root}>
-      <div
-        className={styles.main}
-        onTouchStart={onTouchStart}
-        onTouchEnd={onTouchEnd}
-      >
-        <Image
-          src={photos[index]}
-          alt={`${title} — фото ${index + 1} из ${total}`}
-          fill
-          // галерея на десктопе ~720px (3fr из 1200), на мобилке во всю ширину
-          sizes="(min-width: 768px) 720px, 100vw"
-          className={styles.mainImage}
-          priority={index === 0}
-        />
-
-        {total > 1 && (
-          <>
-            <button
-              type="button"
-              className={`${styles.arrow} ${styles.arrowLeft}`}
-              onClick={goPrev}
-              aria-label="Предыдущее фото"
-            >
-              ‹
-            </button>
-            <button
-              type="button"
-              className={`${styles.arrow} ${styles.arrowRight}`}
-              onClick={goNext}
-              aria-label="Следующее фото"
-            >
-              ›
-            </button>
-            <div className={styles.counter}>
-              {index + 1} / {total}
-            </div>
-          </>
-        )}
-      </div>
+    <div
+      className={styles.root}
+      onTouchStart={onTouchStart}
+      onTouchEnd={onTouchEnd}
+    >
+      <Image
+        src={photos[index]}
+        alt={`${title} — фото ${index + 1} из ${total}`}
+        fill
+        sizes="(min-width: 768px) 65vw, 100vw"
+        className={styles.mainImage}
+        priority={index === 0}
+      />
 
       {total > 1 && (
-        <div className={styles.thumbs} ref={thumbsRef}>
+        <div className={styles.thumbs}>
           {photos.map((src, i) => (
             <button
               key={i}
               type="button"
-              data-thumb-index={i}
-              className={`${styles.thumb} ${
-                i === index ? styles.thumbActive : ""
-              }`}
+              className={`${styles.thumb} ${i === index ? styles.thumbActive : ""}`}
               onClick={() => setIndex(i)}
               aria-label={`Фото ${i + 1}`}
               aria-current={i === index}
             >
-              <Image
-                src={src}
-                alt=""
-                width={80}
-                height={80}
-                sizes="80px"
-                className={styles.thumbImage}
-              />
+              <span className={styles.thumbNum}>{i + 1}</span>
+              <span className={styles.thumbImageWrap}>
+                <Image
+                  src={src}
+                  alt=""
+                  width={48}
+                  height={48}
+                  sizes="48px"
+                  className={styles.thumbImage}
+                />
+              </span>
             </button>
           ))}
         </div>

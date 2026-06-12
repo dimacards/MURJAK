@@ -1,18 +1,75 @@
-/* «Игральная карта»: чёрная, белая рамка, скругление (макет).
-   Широкая и компактная — висит поверх медиа сверху по центру.
-   Типографика кратна 4: заголовок 20, цена 16, текст 12. */
-.root {
+/* ===== Затемнение страницы при раскрытом блоке ===== */
+.backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 30;
+  background: rgba(0, 0, 0, 0.6);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.4s ease;
+}
+
+.backdropVisible {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+/* ===== Блок информации (макет: #111, радиус 44) ===== */
+/* Свёрнут — закреплён у нижней грани по центру. Раскрытие — transform
+   до центра экрана: translateY на (-50svh + 50% собственной высоты + 24px),
+   transform интерполируется плавно. */
+.card {
+  position: fixed;
+  bottom: 24px;
+  left: 50%;
+  transform: translate(-50%, 0);
+  z-index: 31;
+  width: min(560px, 92vw);
   display: flex;
   flex-direction: column;
   gap: 8px;
-  width: 100%;
-  max-width: 640px;
-  background: #000;
-  border: 8px solid #fff;
-  border-radius: var(--radius-md);
+  background: #111;
+  border-radius: 44px;
   padding: 16px;
+  transition: transform 0.45s cubic-bezier(0.22, 0.8, 0.36, 1);
 }
 
+.cardOpen {
+  transform: translate(-50%, calc(-50svh + 50% + 24px));
+}
+
+/* ===== «✕ Скрыть описание» ===== */
+.hideBtn {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  align-self: flex-start;
+  font-family: var(--font-heading);
+  font-weight: 500;
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.35);
+  /* в свёрнутом состоянии схлопнут */
+  max-height: 0;
+  opacity: 0;
+  overflow: hidden;
+  pointer-events: none;
+  transition: max-height 0.4s ease, opacity 0.3s ease, margin 0.4s ease;
+}
+
+.cardOpen .hideBtn {
+  max-height: 24px;
+  opacity: 1;
+  pointer-events: auto;
+  margin-bottom: 4px;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .hideBtn:hover {
+    color: rgba(255, 255, 255, 0.7);
+  }
+}
+
+/* ===== Текст ===== */
 .title {
   font-family: var(--font-heading);
   font-weight: 600;
@@ -57,28 +114,117 @@
   letter-spacing: 0.01em;
 }
 
+/* ===== Особенности — раскрываются вместе с блоком ===== */
+.featuresWrap {
+  max-height: 0;
+  opacity: 0;
+  overflow: hidden;
+  transition: max-height 0.45s cubic-bezier(0.22, 0.8, 0.36, 1),
+    opacity 0.35s ease;
+}
+
+.cardOpen .featuresWrap {
+  max-height: min(48svh, 480px);
+  opacity: 1;
+  overflow-y: auto;
+  scrollbar-width: none;
+}
+
+.cardOpen .featuresWrap::-webkit-scrollbar {
+  display: none;
+}
+
 .features {
-  list-style: none;
+  list-style: disc;
   margin: 0;
-  padding: 0;
+  padding: 4px 0 4px 24px;
   width: 100%;
 }
 
 .featureItem {
   padding: 4px 0;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
   font-size: 12px;
   line-height: 1.4;
   color: #fff;
   overflow-wrap: anywhere;
   word-break: break-word;
+  /* дивайдер из макета: белая полоска 2px с opacity 0.1 */
+  border-bottom: 2px solid rgba(255, 255, 255, 0.1);
 }
 
 .featureItem:last-child {
   border-bottom: none;
 }
 
-.buyWrap {
+/* ===== Кнопки ===== */
+.actions {
+  display: flex;
+  gap: 8px;
   width: 100%;
-  margin-top: var(--space-xs);
+  margin-top: 8px;
+}
+
+/* «Полное описание» — тёмная пилюля; в раскрытом состоянии схлопывается,
+   и «Написать продавцу» занимает всю ширину */
+.descBtn {
+  flex: 1 1 0;
+  min-width: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 12px 16px;
+  background: #1b1b1b;
+  color: #e2e2e2;
+  font-size: 16px;
+  font-weight: 500;
+  border-radius: 28px;
+  white-space: nowrap;
+  overflow: hidden;
+  transition: flex-grow 0.45s cubic-bezier(0.22, 0.8, 0.36, 1),
+    padding 0.45s ease, opacity 0.3s ease;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .descBtn:hover {
+    background: #242424;
+  }
+}
+
+.descBtnHidden {
+  flex-grow: 0.0001;
+  padding: 12px 0;
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* «Написать продавцу» — белая пилюля, чёрный текст и иконка (макет) */
+.buyBtn {
+  flex: 1 1 0;
+  min-width: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 12px 16px;
+  background: #fff;
+  color: #000;
+  font-size: 16px;
+  font-weight: 500;
+  border-radius: 28px;
+  white-space: nowrap;
+  transition: background 0.15s ease;
+  user-select: none;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .buyBtn:hover {
+    background: #e8e8e8;
+  }
+}
+
+.buyBtnDisabled {
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--color-muted);
+  cursor: not-allowed;
+  pointer-events: none;
 }
