@@ -5,17 +5,14 @@ import type { PhotoKind, ProductDto } from "@/lib/api-types";
 import styles from "./ProductCard.module.css";
 
 /**
- * Карточка товара в сетке. Кликабельна целиком (вся карточка → /products/[id]).
+ * Карточка товара в сетке (тёмная тема по макету).
  *
- * preferredKind — какой тип фото показывать (MODEL «на модели» / ITEM «вещь»),
- * управляется toggle'ом на главной. Если фото такого типа нет — первое любое.
+ * preferredKind — какой тип фото показывать (ITEM «вещь» / MODEL «на модели»).
+ * При наведении курсора показывается ВТОРАЯ фотография той же категории
+ * (если она есть): рендерим обе, hover переключает opacity.
  *
- * Иерархия:
- *   1) фото 1:1 (с плашкой «нет в наличии» поверх если inStock=false)
- *   2) название
- *   3) цена
- *
- * Features здесь НЕ показываем — только на открытой карточке товара.
+ * Фото — object-contain: PNG без фона (Photoroom) висит на чёрном фоне
+ * секции, как в макете.
  */
 export function ProductCard({
   product,
@@ -24,23 +21,36 @@ export function ProductCard({
   product: ProductDto;
   preferredKind?: PhotoKind;
 }) {
-  const photo =
-    (preferredKind
-      ? product.photos.find((p) => p.kind === preferredKind)
-      : undefined) ?? product.photos[0];
+  const ofKind = preferredKind
+    ? product.photos.filter((p) => p.kind === preferredKind)
+    : product.photos;
+  const pool = ofKind.length > 0 ? ofKind : product.photos;
+
+  const primary = pool[0];
+  const secondary = pool[1];
 
   return (
     <Link href={`/products/${product.id}`} className={styles.card}>
       <div className={styles.imageWrap}>
-        {photo ? (
-          <Image
-            src={photo.url}
-            alt={product.name}
-            fill
-            // на мобилке карточка ≈ половина viewport, на десктопе ≈ 280px
-            sizes="(min-width: 768px) 280px, 50vw"
-            className={styles.image}
-          />
+        {primary ? (
+          <>
+            <Image
+              src={primary.url}
+              alt={product.name}
+              fill
+              sizes="(min-width: 768px) 33vw, 50vw"
+              className={styles.image}
+            />
+            {secondary && (
+              <Image
+                src={secondary.url}
+                alt=""
+                fill
+                sizes="(min-width: 768px) 33vw, 50vw"
+                className={styles.imageHover}
+              />
+            )}
+          </>
         ) : (
           <div className={styles.imagePlaceholder} aria-hidden="true" />
         )}
@@ -49,11 +59,9 @@ export function ProductCard({
         )}
       </div>
 
-      <div className={styles.body}>
-        <div className={styles.title}>{product.name}</div>
-        <div className={styles.price}>
-          {product.price} {config.currency}
-        </div>
+      <div className={styles.title}>{product.name}</div>
+      <div className={styles.price}>
+        {product.price} {config.currency}
       </div>
     </Link>
   );

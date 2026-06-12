@@ -1,30 +1,20 @@
-.header {
-  padding: var(--space-lg) 0 var(--space-md);
-  border-bottom: 1px solid var(--color-border);
-}
-
-@media (min-width: 768px) {
-  .header {
-    padding: var(--space-xl) 0 var(--space-lg);
-  }
-}
-
 .main {
-  padding-top: var(--space-md);
-  padding-bottom: var(--space-xl);
-}
-
-@media (min-width: 768px) {
-  .main {
-    padding-top: var(--space-lg);
-  }
+  position: relative;
+  min-height: 100svh;
+  background: #000;
 }
 
 .back {
-  display: inline-block;
+  position: absolute;
+  top: var(--space-md);
+  left: var(--space-md);
+  z-index: 3;
   font-size: 14px;
   color: var(--color-muted);
-  margin-bottom: var(--space-md);
+  padding: 6px 12px;
+  background: rgba(0, 0, 0, 0.5);
+  border-radius: var(--radius-full);
+  backdrop-filter: blur(6px);
 }
 
 @media (hover: hover) and (pointer: fine) {
@@ -33,32 +23,82 @@
   }
 }
 
-.layout {
+/* ===== Медиа-блок: карусель + видео, без отступа, одной высоты ===== */
+.mediaRow {
   display: grid;
   grid-template-columns: 1fr;
-  gap: var(--space-lg);
+  gap: 0;
   min-width: 0;
 }
 
-.layout > * {
+.mediaRow > * {
   min-width: 0;
 }
 
 @media (min-width: 768px) {
-  .layout {
-    /* 60/40: фото больше, описание справа */
-    grid-template-columns: 3fr 2fr;
-    gap: var(--space-xl);
-    align-items: start;
+  .mediaRow {
+    grid-template-columns: 1fr 1fr;
+    /* обе колонки — одинаковой высоты */
+    height: min(82svh, 900px);
+  }
+}
+
+/* Видео нет — карусель одна на всю ширину (ограничим по центру) */
+.mediaRowSingle {
+  grid-template-columns: 1fr;
+}
+
+@media (min-width: 768px) {
+  .mediaRowSingle {
+    max-width: 900px;
+    margin: 0 auto;
+    width: 100%;
   }
 }
 
 .galleryCol {
-  min-width: 0;
+  position: relative;
+  height: 60svh;
 }
 
-.detailsCol {
-  min-width: 0;
+@media (min-width: 768px) {
+  .galleryCol {
+    height: 100%;
+  }
+}
+
+.videoCol {
+  position: relative;
+  height: 60svh;
+}
+
+@media (min-width: 768px) {
+  .videoCol {
+    height: 100%;
+  }
+}
+
+.video {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+/* ===== Инфо-карточка («игральная карта») — перекрывает медиа ===== */
+.cardWrap {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  justify-content: center;
+  padding: 0 var(--space-md) var(--space-2xl);
+  /* наезжает на фото/видео */
+  margin-top: -72px;
+}
+
+@media (min-width: 768px) {
+  .cardWrap {
+    margin-top: -140px;
+  }
 }
 
 /* === Not found === */
@@ -69,9 +109,12 @@
   flex-direction: column;
   align-items: center;
   gap: var(--space-md);
+  min-height: 70svh;
+  justify-content: center;
 }
 
 .notFoundTitle {
+  font-family: var(--font-heading);
   font-size: 22px;
   font-weight: 600;
 }

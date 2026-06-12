@@ -1,6 +1,7 @@
+import Image from "next/image";
 import { prisma } from "@/lib/db";
+import config from "@/lib/config";
 import type { ProductDto } from "@/lib/api-types";
-import { Logo } from "@/components/Logo";
 import { Footer } from "@/components/Footer";
 import { ProductGrid } from "@/components/ProductGrid";
 import styles from "./page.module.css";
@@ -9,9 +10,11 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 /**
- * Главная — сетка всех товаров.
- * Без фильтров, без пагинации (у бренда товаров мало).
- * Тянем напрямую через Prisma — без сетевого хопа в собственный /api/products.
+ * Главная по макету Figma:
+ *  1) Hero — фоновое видео на весь экран + огромный логотип MURJAK
+ *     с mix-blend-difference.
+ *  2) Секция «Товары» — чёрный фон с SVG-текстурой, фильтр-иконки
+ *     (вещь/модель), сетка карточек.
  */
 async function fetchProducts(): Promise<ProductDto[]> {
   const products = await prisma.product.findMany({
@@ -39,15 +42,36 @@ export default async function Home() {
 
   return (
     <>
-      <header className={styles.header}>
-        <div className="container">
-          <Logo />
+      <section className={styles.hero}>
+        <video
+          className={styles.heroVideo}
+          src={config.heroVideoUrl}
+          autoPlay
+          muted
+          loop
+          playsInline
+          preload="metadata"
+          aria-hidden="true"
+        />
+        <div className={styles.heroLogoWrap}>
+          <Image
+            src="/brand/murjak-logo.svg"
+            alt={config.storeName}
+            width={1959}
+            height={506}
+            className={styles.heroLogo}
+            priority
+          />
         </div>
-      </header>
+      </section>
 
-      <main className={`container ${styles.main}`}>
-        <ProductGrid items={items} />
-      </main>
+      <section className={styles.products}>
+        <div className={styles.productsTexture} aria-hidden="true" />
+        <div className={styles.productsInner}>
+          <h1 className={styles.productsTitle}>Товары</h1>
+          <ProductGrid items={items} />
+        </div>
+      </section>
 
       <Footer />
     </>

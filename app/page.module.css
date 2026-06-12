@@ -1,61 +1,79 @@
-.header {
-  padding: var(--space-lg) 0 var(--space-md);
-  border-bottom: 1px solid var(--color-border);
+/* ===== Hero: фуллскрин-видео + логотип ===== */
+.hero {
+  position: relative;
+  height: 100svh;
+  overflow: hidden;
+  background: #000;
 }
 
-@media (min-width: 768px) {
-  .header {
-    padding: var(--space-xl) 0 var(--space-lg);
-  }
+.heroVideo {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
 }
 
-.main {
-  padding-top: var(--space-xl);
-  padding-bottom: var(--space-xl);
+.heroLogoWrap {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 4vw;
 }
 
-.status {
-  padding: var(--space-xl) 0;
-  text-align: center;
-  color: var(--color-muted);
+.heroLogo {
+  width: 100%;
+  max-width: 1760px;
+  height: auto;
+  /* белый логотип «вычитается» из видео — как в макете */
+  mix-blend-mode: difference;
 }
 
-.errorState {
-  padding: var(--space-2xl) var(--space-md);
-  text-align: center;
+/* ===== Секция товаров ===== */
+.products {
+  position: relative;
+  background: #000;
+  overflow: hidden;
+  min-height: 60vh;
+}
+
+/* SVG-текстура, разбавляющая чёрный фон (из макета) */
+.productsTexture {
+  position: absolute;
+  inset: 0;
+  background-image: url("/brand/bg-texture.svg");
+  background-size: cover;
+  background-position: center;
+  transform: scaleY(-1);
+  pointer-events: none;
+}
+
+.productsInner {
+  position: relative;
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: var(--space-sm);
+  gap: var(--space-lg);
+  padding: 32px var(--space-md) var(--space-2xl);
 }
 
-.errorTitle {
-  font-size: 16px;
-  font-weight: 600;
-  color: var(--color-text);
+@media (min-width: 768px) {
+  .productsInner {
+    padding: 32px var(--space-lg) var(--space-2xl);
+  }
 }
 
-.errorDetail {
-  font-size: 13px;
-  color: var(--color-muted);
-  /* длинная техническая ошибка может вылезти */
-  overflow-wrap: anywhere;
-  max-width: 480px;
-}
-
-.errorRetry {
-  margin-top: var(--space-xs);
-  padding: 10px 20px;
-  background: var(--color-accent);
-  color: var(--color-accent-text);
-  font-size: 14px;
+.productsTitle {
+  font-family: var(--font-heading);
   font-weight: 500;
-  border-radius: var(--radius-sm);
-  transition: background 0.15s ease;
+  font-size: 24px;
+  color: #fff;
 }
 
-@media (hover: hover) and (pointer: fine) {
-  .errorRetry:hover {
-    background: var(--color-accent-hover);
+@media (min-width: 768px) {
+  .productsTitle {
+    font-size: 32px;
   }
 }

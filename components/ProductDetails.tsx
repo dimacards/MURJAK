@@ -4,14 +4,15 @@ import { BuyButton } from "./BuyButton";
 import styles from "./ProductDetails.module.css";
 
 /**
- * Правая колонка на странице товара.
+ * Инфо-карточка товара в виде «игральной карты» (макет Figma):
+ * чёрная, с толстой белой рамкой и скруглением. Перекрывает медиа-блок.
  *
  * Структура:
- *   • Название (h1)
- *   • Цена
- *   • Плашка «нет в наличии» если inStock=false
- *   • Список features (если есть)
- *   • Кнопка «Написать продавцу» (или «Нет в наличии», если inStock=false)
+ *   • Название (по центру)
+ *   • Цена (по центру)
+ *   • Плашка «нет в наличии» (если inStock=false)
+ *   • Список features с тонкими разделителями
+ *   • Кнопка «Написать продавцу»
  */
 export function ProductDetails({ product }: { product: ProductDto }) {
   return (
@@ -43,11 +44,6 @@ export function ProductDetails({ product }: { product: ProductDto }) {
           price={product.price}
           disabled={!product.inStock}
         />
-        <p className={styles.help}>
-          {product.inStock
-            ? "При нажатии вы перейдёте в Telegram для оформления покупки."
-            : "Этот товар сейчас недоступен."}
-        </p>
       </div>
     </div>
   );

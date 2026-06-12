@@ -1,20 +1,19 @@
 /* ===== Design tokens =====
- * Один источник правды для цветов/отступов/типографики. Меняем здесь —
- * визуально меняется весь сайт. Это и есть «дизайн-токены», которые
- * потом перенесём в Figma как переменные.
+ * Тёмная тема по макету Figma (MURJAK): чёрный фон, белый текст,
+ * Roboto для заголовков/цен, Geist для остального.
  */
 :root {
   /* Цвета */
-  --color-bg: #ffffff;
-  --color-text: #111111;
-  --color-muted: #888888;
-  --color-border: #ebebeb;
-  --color-border-strong: #111111;
+  --color-bg: #000000;
+  --color-text: #ffffff;
+  --color-muted: rgba(255, 255, 255, 0.6);
+  --color-border: rgba(255, 255, 255, 0.1);
+  --color-border-strong: #ffffff;
 
-  /* Акцент (главный CTA — кнопка «Купить») */
+  /* Акцент (CTA «Написать продавцу») */
   --color-accent: #111111;
   --color-accent-text: #ffffff;
-  --color-accent-hover: #2a2a2a;
+  --color-accent-hover: #1f1f1f;
 
   /* Отступы */
   --space-xs: 4px;
@@ -30,14 +29,12 @@
   --radius-full: 999px;
 
   /* Размеры контента */
-  --container-max: 1200px;
+  --container-max: 1600px;
 
-  /* Брейкпоинт (используется в media-queries компонентов вручную) */
-  /* mobile-first: до 768px = моб, от 768px = десктоп */
-
-  /* Шрифт (Geist подключается в layout.tsx) */
+  /* Шрифты (подключаются в layout.tsx) */
   --font-sans: var(--font-geist-sans), system-ui, -apple-system,
     "Helvetica Neue", Arial, sans-serif;
+  --font-heading: var(--font-roboto), var(--font-sans);
 }
 
 /* ===== Reset ===== */
@@ -54,7 +51,6 @@
 
 html {
   height: 100%;
-  /* плавный скролл при кликах по якорям */
   scroll-behavior: smooth;
 }
 
@@ -67,7 +63,6 @@ body {
   line-height: 1.5;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  /* отключаем горизонтальный скролл от случайных overflow */
   overflow-x: hidden;
 }
 
@@ -89,14 +84,16 @@ select,
 textarea {
   font: inherit;
   color: inherit;
-  /* form-контролы имеют браузерные min-width, из-за которых они не
-     сжимаются ниже определённого порога и могут вылазить из контейнера */
   min-width: 0;
 }
 
 img {
   display: block;
   max-width: 100%;
+}
+
+video {
+  display: block;
 }
 
 /* ===== Утилиты ===== */
@@ -113,7 +110,6 @@ img {
   }
 }
 
-/* Скрытие визуально, но доступно для screen reader */
 .sr-only {
   position: absolute;
   width: 1px;

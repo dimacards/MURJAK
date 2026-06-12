@@ -3,7 +3,6 @@ import Link from "next/link";
 import { prisma } from "@/lib/db";
 import config from "@/lib/config";
 import type { ProductDto } from "@/lib/api-types";
-import { Logo } from "@/components/Logo";
 import { Footer } from "@/components/Footer";
 import { Gallery } from "@/components/Gallery";
 import { ProductDetails } from "@/components/ProductDetails";
@@ -13,8 +12,7 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 /**
- * Метаданные карточки — для красивого превью при шаринге ссылки в Telegram:
- * заголовок «<название> · MURJAK», цена в описании, первое фото как og:image.
+ * Метаданные карточки — для красивого превью при шаринге ссылки в Telegram.
  */
 export async function generateMetadata({
   params,
@@ -41,11 +39,6 @@ export async function generateMetadata({
   };
 }
 
-/**
- * Загружает товар напрямую через Prisma. Возвращает null если id невалидный
- * или товара нет. inStock=false не скрывает — товар всё равно показываем
- * с плашкой «нет в наличии».
- */
 async function fetchProduct(idStr: string): Promise<ProductDto | null> {
   const id = Number(idStr);
   if (!Number.isInteger(id) || id < 1) return null;
@@ -72,6 +65,13 @@ async function fetchProduct(idStr: string): Promise<ProductDto | null> {
   };
 }
 
+/**
+ * Страница товара по макету:
+ *  - медиа-блок: каруселька слева + видео справа, без отступа между ними,
+ *    одинаковой высоты (если видео нет — карусель одна, по центру);
+ *  - ниже — инфо-карточка в виде «игральной карты» (чёрная с белой рамкой),
+ *    перекрывает медиа-блок снизу.
+ */
 export default async function ProductPage({
   params,
 }: {
@@ -83,11 +83,6 @@ export default async function ProductPage({
   if (!product) {
     return (
       <>
-        <header className={styles.header}>
-          <div className="container">
-            <Logo />
-          </div>
-        </header>
         <main className={`container ${styles.notFound}`}>
           <h1 className={styles.notFoundTitle}>Товар не найден</h1>
           <Link href="/" className={styles.backLink}>
@@ -99,29 +94,41 @@ export default async function ProductPage({
     );
   }
 
+  const hasVideo = !!product.videoUrl;
+
   return (
     <>
-      <header className={styles.header}>
-        <div className="container">
-          <Logo />
-        </div>
-      </header>
-
-      <main className={`container ${styles.main}`}>
+      <main className={styles.main}>
         <Link href="/" className={styles.back}>
           ← К каталогу
         </Link>
 
-        <div className={styles.layout}>
+        <div
+          className={`${styles.mediaRow} ${hasVideo ? "" : styles.mediaRowSingle}`}
+        >
           <div className={styles.galleryCol}>
             <Gallery
               photos={product.photos.map((p) => p.url)}
               title={product.name}
             />
           </div>
-          <div className={styles.detailsCol}>
-            <ProductDetails product={product} />
-          </div>
+          {hasVideo && (
+            <div className={styles.videoCol}>
+              <video
+                className={styles.video}
+                src={product.videoUrl!}
+                autoPlay
+                muted
+                loop
+                playsInline
+                preload="metadata"
+              />
+            </div>
+          )}
+        </div>
+
+        <div className={styles.cardWrap}>
+          <ProductDetails product={product} />
         </div>
       </main>
 

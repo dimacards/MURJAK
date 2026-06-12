@@ -1,19 +1,18 @@
 "use client";
 
 import { useState } from "react";
+import Image from "next/image";
 import type { PhotoKind, ProductDto } from "@/lib/api-types";
 import { ProductCard } from "./ProductCard";
 import styles from "./ProductGrid.module.css";
 
 /**
- * Сетка карточек: 2 колонки на мобилке, 4 на десктопе (≥768px).
+ * Фильтр-иконки (вещь / на модели) + сетка карточек.
  *
- * Toggle «На модели / Вещь» переключает, фото какого типа показывать
- * в карточках (пока простые кнопки — потом заменим на иконки).
- * Если у товара нет фото выбранного типа — fallback на первое любое.
+ * Иконки из макета: футболка = сама вещь (по умолчанию), человек = на модели.
+ * Активная — полная яркость, неактивная — приглушена.
  */
 export function ProductGrid({ items }: { items: ProductDto[] }) {
-  // По умолчанию показываем фото самой вещи (ITEM)
   const [kind, setKind] = useState<PhotoKind>("ITEM");
 
   if (items.length === 0) {
@@ -29,19 +28,33 @@ export function ProductGrid({ items }: { items: ProductDto[] }) {
       <div className={styles.kindToggle} role="group" aria-label="Вид фото">
         <button
           type="button"
-          className={`${styles.kindBtn} ${kind === "MODEL" ? styles.kindBtnActive : ""}`}
-          onClick={() => setKind("MODEL")}
-          aria-pressed={kind === "MODEL"}
-        >
-          На модели
-        </button>
-        <button
-          type="button"
           className={`${styles.kindBtn} ${kind === "ITEM" ? styles.kindBtnActive : ""}`}
           onClick={() => setKind("ITEM")}
           aria-pressed={kind === "ITEM"}
+          aria-label="Показать фото вещи"
         >
-          Вещь
+          <Image
+            src="/brand/icon-item.svg"
+            alt=""
+            width={75}
+            height={75}
+            className={styles.kindIcon}
+          />
+        </button>
+        <button
+          type="button"
+          className={`${styles.kindBtn} ${kind === "MODEL" ? styles.kindBtnActive : ""}`}
+          onClick={() => setKind("MODEL")}
+          aria-pressed={kind === "MODEL"}
+          aria-label="Показать фото на модели"
+        >
+          <Image
+            src="/brand/icon-model.svg"
+            alt=""
+            width={75}
+            height={75}
+            className={styles.kindIcon}
+          />
         </button>
       </div>
 

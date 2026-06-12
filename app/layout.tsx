@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import { Geist, Geist_Mono, Roboto } from "next/font/google";
 import config from "@/lib/config";
 import "./globals.css";
 
@@ -10,6 +10,13 @@ const geistSans = Geist({
 
 const geistMono = Geist_Mono({
   variable: "--font-geist-mono",
+  subsets: ["latin", "cyrillic"],
+});
+
+// Roboto — заголовки и цены по макету (Medium 500 / SemiBold 600)
+const roboto = Roboto({
+  variable: "--font-roboto",
+  weight: ["500", "600", "700"],
   subsets: ["latin", "cyrillic"],
 });
 
@@ -42,7 +49,10 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="ru" className={`${geistSans.variable} ${geistMono.variable}`}>
+    <html
+      lang="ru"
+      className={`${geistSans.variable} ${geistMono.variable} ${roboto.variable}`}
+    >
       <body>{children}</body>
     </html>
   );

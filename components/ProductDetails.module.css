@@ -1,81 +1,88 @@
+/* «Игральная карта»: чёрная, белая рамка 12px, скругление 8px (макет) */
 .root {
   display: flex;
   flex-direction: column;
-  gap: var(--space-lg);
+  gap: 8px;
+  width: 100%;
+  max-width: 640px;
+  background: #000;
+  border: 8px solid #fff;
+  border-radius: var(--radius-md);
+  padding: 20px;
+}
+
+@media (min-width: 768px) {
+  .root {
+    border-width: 12px;
+  }
 }
 
 .title {
-  font-size: 22px;
+  font-family: var(--font-heading);
   font-weight: 600;
-  line-height: 1.25;
-  letter-spacing: -0.01em;
-  /* длинное слово без пробелов (URL, типа артикула) не должно
-     раздувать колонку — переносим в любом месте */
+  font-size: 20px;
+  line-height: 1.4;
+  letter-spacing: -0.28px;
+  text-align: center;
+  color: #fff;
   overflow-wrap: anywhere;
   word-break: break-word;
 }
 
-@media (min-width: 480px) {
-  .title {
-    font-size: 24px;
-  }
-}
-
 @media (min-width: 768px) {
   .title {
-    font-size: 28px;
+    font-size: 24px;
   }
 }
 
 .price {
-  font-size: 22px;
+  font-family: var(--font-heading);
   font-weight: 500;
+  font-size: 18px;
+  line-height: 1.4;
+  text-align: center;
+  color: #fff;
 }
 
 @media (min-width: 768px) {
   .price {
-    font-size: 24px;
+    font-size: 20px;
   }
 }
 
 .outOfStock {
-  display: inline-block;
+  align-self: center;
   padding: 6px 12px;
-  background: rgba(0, 0, 0, 0.08);
-  color: var(--color-text);
+  background: rgba(255, 255, 255, 0.1);
+  color: #fff;
   font-size: 13px;
   font-weight: 500;
   border-radius: 4px;
   letter-spacing: 0.01em;
-  align-self: flex-start;
 }
 
 .features {
   list-style: none;
   margin: 0;
   padding: 0;
-  border-top: 1px solid var(--color-border);
+  width: 100%;
 }
 
 .featureItem {
-  padding: 12px 0;
-  border-bottom: 1px solid var(--color-border);
-  font-size: 14px;
-  line-height: 1.5;
-  color: var(--color-text);
+  padding: 4px 0 5px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  font-size: 16px;
+  line-height: 1.4;
+  color: #fff;
   overflow-wrap: anywhere;
   word-break: break-word;
 }
 
-.buyWrap {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-sm);
-  margin-top: var(--space-sm);
+.featureItem:last-child {
+  border-bottom: none;
 }
 
-.help {
-  font-size: 12px;
-  color: var(--color-muted);
-  text-align: center;
+.buyWrap {
+  width: 100%;
+  margin-top: var(--space-sm);
 }
