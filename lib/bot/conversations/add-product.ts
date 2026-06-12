@@ -15,7 +15,14 @@ const MAX_VIDEO_BYTES = 20 * 1024 * 1024;
 
 const CB_CANCEL = "ap:cancel";
 
-export type CollectedPhoto = { fileId: string; kind: PhotoKind };
+// isDocument: фото пришло «как файл» (PNG без сжатия). Такие file_id нельзя
+// отправлять в альбом как type:"photo" — Telegram отвечает Bad Request,
+// конверсейшн падает. В превью шлём их отдельной группой type:"document".
+export type CollectedPhoto = {
+  fileId: string;
+  kind: PhotoKind;
+  isDocument: boolean;
+};
 export type CollectedVideo = { fileId: string } | null;
 
 function cancelKb(): InlineKeyboard {
@@ -126,25 +133,35 @@ export async function addProductConversation(
   while (true) {
     if (lastKbMsgId !== undefined) await stripKb(ctx, lastKbMsgId);
 
-    // Альбом всех фото (caption на первом). Видео — отдельным сообщением,
-    // чтобы не упереться в лимит 10 медиа на альбом.
-    const caption = buildCaption(name, price, features);
-    await ctx.replyWithMediaGroup(
-      photos.map((p, i) => ({
-        type: "photo" as const,
-        media: p.fileId,
-        caption: i === 0 ? caption : undefined,
-      })),
-    );
+    // Превью-медиа. Caption у альбома короткий (название+цена) — полный
+    // список особенностей идёт в summary-сообщении ниже: caption у медиа
+    // ограничен 1024 символами, и длинные features роняли запрос (Bad
+    // Request → конверсейшн умирал, «дальше ничего не происходит»).
+    //
+    // Фото-документы (PNG как файл) нельзя класть в альбом type:"photo" —
+    // шлём их отдельной группой type:"document".
+    const caption = `${name}\n${price} ${config.currency}`;
+    const asPhotos = photos.filter((p) => !p.isDocument);
+    const asDocs = photos.filter((p) => p.isDocument);
+    await sendAlbum(ctx, asPhotos, "photo", caption);
+    await sendAlbum(ctx, asDocs, "document", asPhotos.length === 0 ? caption : undefined);
     if (video) {
       await ctx.replyWithVideo(video.fileId, { caption: "Видео вещи" });
     }
 
     const modelCount = photos.filter((p) => p.kind === "MODEL").length;
     const itemCount = photos.length - modelCount;
+    const featuresBlock =
+      features.length > 0
+        ? `\n\nОсобенности:\n${truncateForMessage(
+            features.map((f) => `• ${f}`).join("\n"),
+            3000,
+          )}`
+        : "";
     const summary =
       `Фото: на модели ${modelCount}, вещь ${itemCount}\n` +
-      `Видео: ${video ? "есть" : "нет"}`;
+      `Видео: ${video ? "есть" : "нет"}` +
+      featuresBlock;
 
     const previewKb = new InlineKeyboard()
       .text("✅ Опубликовать", "ap:pub")
@@ -248,7 +265,7 @@ export async function collectAllPhotos(
   if (model === "cancel") return "cancel";
 
   const remaining = MAX_PHOTOS - model.length;
-  let item: string[] = [];
+  let item: CollectedFile[] = [];
   if (remaining > 0) {
     const r = await collectPhotosOfKind(conversation, ctx, {
       intro:
@@ -264,10 +281,12 @@ export async function collectAllPhotos(
   }
 
   return [
-    ...model.map((fileId) => ({ fileId, kind: "MODEL" as PhotoKind })),
-    ...item.map((fileId) => ({ fileId, kind: "ITEM" as PhotoKind })),
+    ...model.map((f) => ({ ...f, kind: "MODEL" as PhotoKind })),
+    ...item.map((f) => ({ ...f, kind: "ITEM" as PhotoKind })),
   ];
 }
+
+type CollectedFile = { fileId: string; isDocument: boolean };
 
 /**
  * Сбор фото одного типа. Per-batch UX: внутри одного альбома (общий
@@ -278,7 +297,7 @@ async function collectPhotosOfKind(
   conversation: AppConversation,
   ctx: AppContext,
   opts: { intro: string; allowEmpty: boolean; max: number },
-): Promise<string[] | "cancel"> {
+): Promise<CollectedFile[] | "cancel"> {
   const initialKb = opts.allowEmpty
     ? new InlineKeyboard().text("⏭ пропустить", "ap:pdone").row().text("Отмена", CB_CANCEL)
     : cancelKb();
@@ -295,7 +314,7 @@ async function collectPhotosOfKind(
   let batchKey: string | undefined;
   let batchCount = 0;
 
-  const ids: string[] = [];
+  const ids: CollectedFile[] = [];
   while (ids.length < opts.max) {
     const next = await conversation.wait();
 
@@ -332,7 +351,12 @@ async function collectPhotosOfKind(
 
     if (photoSizes || isImageDoc) {
       ids.push(
-        photoSizes ? photoSizes[photoSizes.length - 1].file_id : doc!.file_id,
+        photoSizes
+          ? {
+              fileId: photoSizes[photoSizes.length - 1].file_id,
+              isDocument: false,
+            }
+          : { fileId: doc!.file_id, isDocument: true },
       );
 
       const mgi = next.message!.media_group_id;
@@ -531,25 +555,25 @@ async function collectPrice(
 
 // ─── Сбор features ───────────────────────────────────────────────────────────
 
+/**
+ * Особенности — как фото: написал строку → бот ОТДЕЛЬНЫМ сообщением
+ * подтверждает («Добавлено: N»), пишешь следующую без всяких кнопок «ещё».
+ * Кнопки только «готово» и «Отмена». У предыдущего подтверждения кнопки
+ * снимаются — активные всегда у последнего.
+ */
 async function collectFeatures(
   conversation: AppConversation,
   ctx: AppContext,
   opts: { intro: string },
 ): Promise<string[] | "cancel"> {
-  const initial = await ctx.reply(opts.intro, {
-    reply_markup: new InlineKeyboard()
-      .text("✅ готово (без особенностей)", "ap:fdone")
-      .row()
-      .text("Отмена", CB_CANCEL),
-  });
-  const state = { id: initial.message_id as number | undefined };
-
-  const kb = () =>
+  const kb = (zero: boolean) =>
     new InlineKeyboard()
-      .text("➕ ещё особенность", "ap:fmore")
-      .text("✅ готово", "ap:fdone")
+      .text(zero ? "✅ готово (без особенностей)" : "✅ готово", "ap:fdone")
       .row()
       .text("Отмена", CB_CANCEL);
+
+  const initial = await ctx.reply(opts.intro, { reply_markup: kb(true) });
+  let lastPromptId: number | undefined = initial.message_id;
 
   const features: string[] = [];
   while (features.length < MAX_FEATURES) {
@@ -557,14 +581,27 @@ async function collectFeatures(
 
     if (next.callbackQuery?.data === CB_CANCEL) {
       await next.answerCallbackQuery().catch(() => {});
-      await upsertPrompt(ctx, state, "Отменено.", undefined);
+      if (lastPromptId !== undefined) await stripKb(ctx, lastPromptId);
+      await ctx.reply("Отменено.");
       return "cancel";
+    }
+
+    if (next.callbackQuery?.data === "ap:fdone") {
+      await next.answerCallbackQuery().catch(() => {});
+      if (lastPromptId !== undefined) await stripKb(ctx, lastPromptId);
+      await ctx.reply(
+        features.length === 0
+          ? "Готово, без особенностей."
+          : `Готово, особенностей: ${features.length}.`,
+      );
+      return features;
     }
 
     if (next.message?.text) {
       const text = next.message.text.trim();
       if (text === "/cancel") {
-        await upsertPrompt(ctx, state, "Отменено.", undefined);
+        if (lastPromptId !== undefined) await stripKb(ctx, lastPromptId);
+        await next.reply("Отменено.");
         return "cancel";
       }
       if (text.length === 0 || text.length > MAX_FEATURE) {
@@ -573,52 +610,26 @@ async function collectFeatures(
       }
       features.push(text);
 
+      // снимаем кнопки с предыдущего подтверждения
+      if (lastPromptId !== undefined) await stripKb(ctx, lastPromptId);
+
       if (features.length >= MAX_FEATURES) {
-        await upsertPrompt(
-          ctx,
-          state,
-          `Готово, особенностей: ${MAX_FEATURES} (максимум).`,
-          undefined,
-        );
+        await ctx.reply(`Добавлено: ${MAX_FEATURES} — максимум. Идём дальше.`);
         return features;
       }
-      await upsertPrompt(
-        ctx,
-        state,
-        `Особенностей: ${features.length}. Ещё или закончить?`,
-        kb(),
-      );
-      continue;
-    }
 
-    if (next.callbackQuery?.data === "ap:fmore") {
-      await next
-        .answerCallbackQuery({ text: "Жду следующую особенность" })
-        .catch(() => {});
-      continue;
-    }
-    if (next.callbackQuery?.data === "ap:fdone") {
-      await next.answerCallbackQuery().catch(() => {});
-      await upsertPrompt(
-        ctx,
-        state,
-        features.length === 0
-          ? "Готово, без особенностей."
-          : `Готово, особенностей: ${features.length}.`,
-        undefined,
+      // отдельное сообщение-подтверждение на каждую особенность
+      const sent = await ctx.reply(
+        `Добавлено (${features.length}): «${text}».\nПиши следующую или жми «готово».`,
+        { reply_markup: kb(false) },
       );
-      return features;
+      lastPromptId = sent.message_id;
+      continue;
     }
 
     await next.reply("Жду текст особенности или нажми кнопку.");
   }
 
-  await upsertPrompt(
-    ctx,
-    state,
-    `Готово, особенностей: ${features.length}.`,
-    undefined,
-  );
   return features;
 }
 
@@ -710,8 +721,37 @@ async function publish(
 
 // ─── Утилиты ─────────────────────────────────────────────────────────────────
 
-function buildCaption(name: string, price: number, features: string[]): string {
-  const lines = [name, `${price} ${config.currency}`];
-  if (features.length > 0) lines.push("", ...features.map((f) => `• ${f}`));
-  return lines.join("\n");
+/**
+ * Отправляет набор медиа: одиночное — sendPhoto/sendDocument (media group
+ * требует минимум 2 элемента), несколько — sendMediaGroup. Пустой список —
+ * ничего. Caption вешается на первый элемент.
+ */
+async function sendAlbum(
+  ctx: AppContext,
+  items: CollectedPhoto[],
+  type: "photo" | "document",
+  caption: string | undefined,
+): Promise<void> {
+  if (items.length === 0) return;
+  if (items.length === 1) {
+    if (type === "photo") {
+      await ctx.replyWithPhoto(items[0].fileId, { caption });
+    } else {
+      await ctx.replyWithDocument(items[0].fileId, { caption });
+    }
+    return;
+  }
+  await ctx.replyWithMediaGroup(
+    items.map((p, i) => ({
+      type,
+      media: p.fileId,
+      caption: i === 0 ? caption : undefined,
+    })),
+  );
+}
+
+/** Обрезает текст до лимита, чтобы не упереться в 4096 символов сообщения. */
+function truncateForMessage(s: string, max: number): string {
+  if (s.length <= max) return s;
+  return s.slice(0, max - 1) + "…";
 }
