@@ -39,14 +39,20 @@
   min-height: 60vh;
 }
 
-/* SVG-текстура, разбавляющая чёрный фон (из макета) */
+/* SVG-текстура, разбавляющая чёрный фон.
+   Размер ФИКСИРОВАННЫЙ как в макете (1950×2857, сдвиг -22px, отзеркалена
+   по вертикали): не масштабируется и не деформируется, лишнее уходит
+   за края секции (overflow: hidden на .products). */
 .productsTexture {
   position: absolute;
-  inset: 0;
+  left: 50%;
+  top: -22px;
+  width: 1950px;
+  height: 2857px;
   background-image: url("/brand/bg-texture.svg");
-  background-size: cover;
-  background-position: center;
-  transform: scaleY(-1);
+  background-size: 100% 100%;
+  background-repeat: no-repeat;
+  transform: translateX(-50%) scaleY(-1);
   pointer-events: none;
 }
 

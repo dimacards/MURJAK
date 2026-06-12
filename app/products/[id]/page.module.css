@@ -3,14 +3,12 @@
   background: #000;
 }
 
-/* Десктоп: медиа сверху + карточка под ними, всё в один экран без скролла.
-   Высота медиа = экран минус карточка (flex: 1). */
+/* Десктоп: три колонки в один экран без скролла —
+   каруселька | описание | видео, все по высоте экрана. */
 @media (min-width: 768px) {
   .main {
     height: 100svh;
     overflow: hidden;
-    display: flex;
-    flex-direction: column;
   }
 }
 
@@ -33,9 +31,7 @@
   }
 }
 
-/* ===== Медиа-блок ===== */
-/* Стандарт: фото 1:1 (квадратная галерея, миниатюры поверх),
-   видео вертикальное 9:16. На десктопе вплотную, по центру. */
+/* ===== Раскладка ===== */
 .mediaRow {
   display: flex;
   flex-direction: column;
@@ -45,13 +41,13 @@
 
 @media (min-width: 768px) {
   .mediaRow {
-    flex: 1;
-    min-height: 0;
     flex-direction: row;
     justify-content: center;
+    height: 100%;
   }
 }
 
+/* Карусель слева — забирает оставшееся место, фото object-cover */
 .galleryCol {
   position: relative;
   width: 100%;
@@ -60,13 +56,33 @@
 @media (min-width: 768px) {
   .galleryCol {
     width: auto;
+    flex: 1;
+    min-width: 0;
     height: 100%;
-    /* квадратное фото: ширина = высоте медиа-блока */
-    aspect-ratio: 1 / 1;
-    flex-shrink: 0;
   }
 }
 
+/* Описание по центру — узкая колонка, карта вертикально по центру */
+.cardWrap {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  justify-content: center;
+  padding: var(--space-md);
+}
+
+@media (min-width: 768px) {
+  .cardWrap {
+    flex: 0 0 auto;
+    width: clamp(300px, 26vw, 400px);
+    height: 100%;
+    align-items: center;
+    padding: var(--space-md);
+    overflow-y: auto;
+  }
+}
+
+/* Видео справа — вертикальное 9:16 на всю высоту */
 .videoCol {
   position: relative;
   width: 100%;
@@ -79,7 +95,6 @@
   .videoCol {
     width: auto;
     height: 100%;
-    /* вертикальное видео: ширина = высота × 9/16 */
     aspect-ratio: 9 / 16;
     flex-shrink: 0;
   }
@@ -102,22 +117,6 @@
     max-height: 70svh;
     width: auto;
     max-width: 100%;
-  }
-}
-
-/* ===== Инфо-карточка («игральная карта») — под медиа ===== */
-.cardWrap {
-  position: relative;
-  z-index: 2;
-  display: flex;
-  justify-content: center;
-  padding: var(--space-md);
-}
-
-@media (min-width: 768px) {
-  .cardWrap {
-    flex-shrink: 0;
-    padding: var(--space-md) var(--space-md) var(--space-lg);
   }
 }
 

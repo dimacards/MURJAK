@@ -103,14 +103,15 @@ export default async function ProductPage({
           ← К каталогу
         </Link>
 
-        <div
-          className={`${styles.mediaRow} ${hasVideo ? "" : styles.mediaRowSingle}`}
-        >
+        <div className={styles.mediaRow}>
           <div className={styles.galleryCol}>
             <Gallery
               photos={product.photos.map((p) => p.url)}
               title={product.name}
             />
+          </div>
+          <div className={styles.cardWrap}>
+            <ProductDetails product={product} />
           </div>
           {hasVideo && (
             <div className={styles.videoCol}>
@@ -125,10 +126,6 @@ export default async function ProductPage({
               />
             </div>
           )}
-        </div>
-
-        <div className={styles.cardWrap}>
-          <ProductDetails product={product} />
         </div>
       </main>
     </>
