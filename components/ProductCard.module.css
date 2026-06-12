@@ -48,13 +48,14 @@
   padding: 4px 8px;
   background: rgba(255, 255, 255, 0.12);
   color: #fff;
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 500;
   border-radius: 4px;
   letter-spacing: 0.02em;
   backdrop-filter: blur(4px);
 }
 
+/* Типографика кратна 4: заголовок 16/20, цена 12/16 */
 .title {
   font-family: var(--font-heading);
   font-weight: 600;
@@ -74,14 +75,14 @@
 
 @media (min-width: 768px) {
   .title {
-    font-size: 24px;
+    font-size: 20px;
   }
 }
 
 .price {
   font-family: var(--font-heading);
   font-weight: 500;
-  font-size: 14px;
+  font-size: 12px;
   line-height: 1.4;
   text-align: center;
   color: #fff;
@@ -90,6 +91,6 @@
 
 @media (min-width: 768px) {
   .price {
-    font-size: 20px;
+    font-size: 16px;
   }
 }

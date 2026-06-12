@@ -17,7 +17,7 @@
   top: var(--space-md);
   left: var(--space-md);
   z-index: 3;
-  font-size: 14px;
+  font-size: 12px;
   color: var(--color-muted);
   padding: 6px 12px;
   background: rgba(0, 0, 0, 0.5);
@@ -32,6 +32,9 @@
 }
 
 /* ===== Раскладка ===== */
+/* Десктоп: фото слева и видео справа, равноудалены от краёв и друг от
+   друга (space-evenly), карточка информации — ПОВЕРХ них, прижата к
+   верху по центру. */
 .mediaRow {
   display: flex;
   flex-direction: column;
@@ -42,12 +45,12 @@
 @media (min-width: 768px) {
   .mediaRow {
     flex-direction: row;
-    justify-content: center;
+    justify-content: space-evenly;
     height: 100%;
   }
 }
 
-/* Карусель слева — забирает оставшееся место, фото object-cover */
+/* Карусель слева — размер прежний (~38% ширины экрана, во всю высоту) */
 .galleryCol {
   position: relative;
   width: 100%;
@@ -55,14 +58,14 @@
 
 @media (min-width: 768px) {
   .galleryCol {
-    width: auto;
-    flex: 1;
+    width: 38vw;
+    flex-shrink: 0;
     min-width: 0;
     height: 100%;
   }
 }
 
-/* Описание по центру — узкая колонка, карта вертикально по центру */
+/* Карточка информации — поверх медиа, наверху по центру, широкая */
 .cardWrap {
   position: relative;
   z-index: 2;
@@ -73,11 +76,13 @@
 
 @media (min-width: 768px) {
   .cardWrap {
-    flex: 0 0 auto;
-    width: clamp(300px, 26vw, 400px);
-    height: 100%;
-    align-items: center;
-    padding: var(--space-md);
+    position: absolute;
+    top: var(--space-lg);
+    left: 50%;
+    transform: translateX(-50%);
+    width: min(640px, 60vw);
+    max-height: calc(100svh - var(--space-lg) * 2);
+    padding: 0;
     overflow-y: auto;
   }
 }
@@ -134,12 +139,12 @@
 
 .notFoundTitle {
   font-family: var(--font-heading);
-  font-size: 22px;
+  font-size: 20px;
   font-weight: 600;
 }
 
 .backLink {
-  font-size: 14px;
+  font-size: 12px;
   color: var(--color-muted);
   border-bottom: 1px solid currentColor;
 }

@@ -1,4 +1,6 @@
-/* «Игральная карта»: чёрная, белая рамка 12px, скругление 8px (макет) */
+/* «Игральная карта»: чёрная, белая рамка, скругление (макет).
+   Широкая и компактная — висит поверх медиа сверху по центру.
+   Типографика кратна 4: заголовок 20, цена 16, текст 12. */
 .root {
   display: flex;
   flex-direction: column;
@@ -8,20 +10,14 @@
   background: #000;
   border: 8px solid #fff;
   border-radius: var(--radius-md);
-  padding: 20px;
-}
-
-@media (min-width: 768px) {
-  .root {
-    border-width: 12px;
-  }
+  padding: 16px;
 }
 
 .title {
   font-family: var(--font-heading);
   font-weight: 600;
-  font-size: 20px;
-  line-height: 1.4;
+  font-size: 16px;
+  line-height: 1.3;
   letter-spacing: -0.28px;
   text-align: center;
   color: #fff;
@@ -31,31 +27,31 @@
 
 @media (min-width: 768px) {
   .title {
-    font-size: 24px;
+    font-size: 20px;
   }
 }
 
 .price {
   font-family: var(--font-heading);
   font-weight: 500;
-  font-size: 18px;
-  line-height: 1.4;
+  font-size: 12px;
+  line-height: 1.3;
   text-align: center;
   color: #fff;
 }
 
 @media (min-width: 768px) {
   .price {
-    font-size: 20px;
+    font-size: 16px;
   }
 }
 
 .outOfStock {
   align-self: center;
-  padding: 6px 12px;
+  padding: 4px 10px;
   background: rgba(255, 255, 255, 0.1);
   color: #fff;
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 500;
   border-radius: 4px;
   letter-spacing: 0.01em;
@@ -69,9 +65,9 @@
 }
 
 .featureItem {
-  padding: 4px 0 5px;
+  padding: 4px 0;
   border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-  font-size: 16px;
+  font-size: 12px;
   line-height: 1.4;
   color: #fff;
   overflow-wrap: anywhere;
@@ -84,5 +80,5 @@
 
 .buyWrap {
   width: 100%;
-  margin-top: var(--space-sm);
+  margin-top: var(--space-xs);
 }

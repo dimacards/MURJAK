@@ -74,12 +74,12 @@
 .productsTitle {
   font-family: var(--font-heading);
   font-weight: 500;
-  font-size: 24px;
+  font-size: 20px;
   color: #fff;
 }
 
 @media (min-width: 768px) {
   .productsTitle {
-    font-size: 32px;
+    font-size: 28px;
   }
 }
