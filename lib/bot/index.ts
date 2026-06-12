@@ -23,6 +23,7 @@ import {
   editNameConversation,
   editPriceConversation,
   editPhotosConversation,
+  editVideoConversation,
   addFeatureConversation,
 } from "./conversations/edit-product";
 import { prisma } from "../db";
@@ -97,6 +98,7 @@ bot.use(createConversation(addProductConversation, "addProductConversation"));
 bot.use(createConversation(editNameConversation, "editNameConversation"));
 bot.use(createConversation(editPriceConversation, "editPriceConversation"));
 bot.use(createConversation(editPhotosConversation, "editPhotosConversation"));
+bot.use(createConversation(editVideoConversation, "editVideoConversation"));
 bot.use(createConversation(addFeatureConversation, "addFeatureConversation"));
 
 // 3. Команды (только в ЛС).
@@ -144,6 +146,12 @@ bot.callbackQuery(/^pr:editphotos:(\d+)$/, async (ctx) => {
   const id = Number(match?.[1]);
   await ctx.answerCallbackQuery().catch(() => {});
   await ctx.conversation.enter("editPhotosConversation", id);
+});
+bot.callbackQuery(/^pr:editvideo:(\d+)$/, async (ctx) => {
+  const match = ctx.match as RegExpMatchArray | undefined;
+  const id = Number(match?.[1]);
+  await ctx.answerCallbackQuery().catch(() => {});
+  await ctx.conversation.enter("editVideoConversation", id);
 });
 bot.callbackQuery(/^pr:fadd:(\d+)$/, async (ctx) => {
   const match = ctx.match as RegExpMatchArray | undefined;

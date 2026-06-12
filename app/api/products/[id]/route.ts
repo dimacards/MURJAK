@@ -36,7 +36,8 @@ export async function GET(
       name: product.name,
       price: product.price,
       inStock: product.inStock,
-      photos: product.photos.map((p) => p.publicUrl),
+      photos: product.photos.map((p) => ({ url: p.publicUrl, kind: p.kind })),
+      videoUrl: product.videoPublicUrl ?? null,
       features: product.features.map((f) => f.text),
       createdAt: product.createdAt.toISOString(),
     };

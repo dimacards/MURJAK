@@ -107,8 +107,13 @@ export async function onProductDelConfirm(ctx: AppContext): Promise<void> {
     where: { productId: id },
     select: { storagePath: true },
   });
-  if (photos.length > 0) {
-    const paths = photos.map((p) => p.storagePath);
+  const productRow = await prisma.product.findUnique({
+    where: { id },
+    select: { videoStoragePath: true },
+  });
+  const paths = photos.map((p) => p.storagePath);
+  if (productRow?.videoStoragePath) paths.push(productRow.videoStoragePath);
+  if (paths.length > 0) {
     const { error } = await supabase.storage
       .from(SUPABASE_BUCKET)
       .remove(paths);
@@ -193,6 +198,7 @@ export async function renderProductMenu(
     `Цена: ${product.price} ${config.currency}`,
     `Наличие: ${product.inStock ? "✅ в наличии" : "⛔ нет в наличии"}`,
     `Фото: ${product.photos.length}, особенностей: ${product.features.length}`,
+    `Видео: ${product.videoPublicUrl ? "есть" : "нет"}`,
   ];
   const text = lines.join("\n");
 
@@ -203,6 +209,7 @@ export async function renderProductMenu(
     .text("🖼 Фото (перезагрузить все)", `pr:editphotos:${id}`)
     .row()
     .text("⭐ Особенности", `pr:fmenu:${id}`)
+    .text("🎥 Видео", `pr:editvideo:${id}`)
     .row()
     .text(
       product.inStock ? "⛔ Пометить «нет в наличии»" : "✅ Вернуть в наличие",

@@ -4,8 +4,8 @@ import { prisma } from "../../db";
 import { uploadTelegramPhotoToSupabase } from "../upload";
 import { supabase, SUPABASE_BUCKET } from "../../supabase";
 import { renderProductMenu } from "../handlers/products";
+import { collectAllPhotos, collectVideo } from "./add-product";
 
-const MAX_PHOTOS = 10;
 const MAX_NAME = 200;
 const MAX_FEATURE = 200;
 const MAX_PRICE = 100_000_000;
@@ -165,100 +165,20 @@ export async function editPhotosConversation(
     return;
   }
 
-  const initial = await ctx.reply(
+  await ctx.reply(
     `Перезагрузка фото товара #${productId}.\n` +
-      `Пришли новые фото (1-10). Старые ВСЕ будут удалены, как только нажмёшь «готово».`,
-    { reply_markup: cancelOnly() },
+      `Сейчас соберём новые фото (на модели + вещь) — старые будут удалены ` +
+      `только после загрузки новых. Отмена на любом шаге оставляет всё как было.`,
   );
 
-  const state = { id: initial.message_id as number | undefined };
-  // ctx.api НАПРЯМУЮ — @grammyjs/conversations реплеит сам, external НЕ нужен.
-  const showPrompt = async (text: string, kb: InlineKeyboard | undefined) => {
-    const chatId = ctx.chat?.id;
-    if (state.id !== undefined && chatId !== undefined) {
-      try {
-        await ctx.api.editMessageText(chatId, state.id, text, {
-          reply_markup: kb,
-        });
-        return;
-      } catch (e) {
-        const m = String((e as Error)?.message ?? "").toLowerCase();
-        if (m.includes("not modified")) return;
-        state.id = undefined;
-      }
-    }
-    const sent = await ctx.reply(text, { reply_markup: kb });
-    state.id = sent.message_id;
-  };
-
-  const fileIds: string[] = [];
-  const photoKb = () =>
-    new InlineKeyboard()
-      .text("➕ ещё фото", "ep:pmore")
-      .text("✅ готово", "ep:pdone")
-      .row()
-      .text("Отмена", CB_CANCEL);
-
-  while (fileIds.length < MAX_PHOTOS) {
-    const next = await conversation.wait();
-
-    if (next.message?.text?.trim() === "/cancel") {
-      await next.reply("Изменение отменено. Старые фото на месте.");
-      return;
-    }
-
-    if (next.callbackQuery?.data === CB_CANCEL) {
-      await next.answerCallbackQuery().catch(() => {});
-      await showPrompt("Изменение отменено. Старые фото на месте.", undefined);
-      return;
-    }
-
-    if (next.message?.photo) {
-      const sizes = next.message.photo;
-      const best = sizes[sizes.length - 1];
-      fileIds.push(best.file_id);
-
-      if (fileIds.length >= MAX_PHOTOS) {
-        await showPrompt(
-          `${MAX_PHOTOS}/${MAX_PHOTOS} — максимум.`,
-          undefined,
-        );
-        break;
-      }
-
-      await showPrompt(
-        `Фото ${fileIds.length}/${MAX_PHOTOS}. Добавить ещё или закончить?`,
-        photoKb(),
-      );
-      continue;
-    }
-
-    if (next.callbackQuery?.data === "ep:pdone") {
-      await next.answerCallbackQuery().catch(() => {});
-      if (fileIds.length === 0) {
-        await showPrompt(
-          "Нужно хотя бы одно новое фото — старые не будут удалены без замены.",
-          photoKb(),
-        );
-        continue;
-      }
-      break;
-    }
-
-    if (next.callbackQuery?.data === "ep:pmore") {
-      await next.answerCallbackQuery({ text: "Жду фото" }).catch(() => {});
-      continue;
-    }
-
-    await next.reply("Жду фото или нажми кнопку.");
-  }
-
-  if (fileIds.length === 0) {
-    await ctx.reply("Без новых фото изменение отменено.");
+  // Тот же двухпроходный сбор, что и в /add_product: модель → вещь.
+  const collected = await collectAllPhotos(conversation, ctx);
+  if (collected === "cancel") {
+    await ctx.reply("Изменение отменено. Старые фото на месте.");
     return;
   }
 
-  await showPrompt("Сохраняю новые фото...", undefined);
+  const status = await ctx.reply("Сохраняю новые фото…");
 
   try {
     await conversation.external(async () => {
@@ -281,12 +201,11 @@ export async function editPhotosConversation(
       // 3. Залить новые с timestamp-префиксом (чтобы CDN-кэш не подложил
       //    старое изображение под тем же путём)
       const ts = Date.now();
-      for (let i = 0; i < fileIds.length; i++) {
-        const fileId = fileIds[i];
+      for (let i = 0; i < collected.length; i++) {
         const storagePath = `products/${productId}/${ts}-${i}.jpg`;
         const { publicUrl } = await uploadTelegramPhotoToSupabase(
           ctx.api,
-          fileId,
+          collected[i].fileId,
           storagePath,
         );
         await prisma.photo.create({
@@ -294,19 +213,201 @@ export async function editPhotosConversation(
             productId,
             storagePath,
             publicUrl,
-            telegramFileId: fileId,
+            telegramFileId: collected[i].fileId,
             order: i,
+            kind: collected[i].kind,
           },
         });
       }
     });
 
-    await showPrompt(`Фото обновлены (${fileIds.length} шт.).`, undefined);
+    await ctx.api
+      .editMessageText(
+        ctx.chat!.id,
+        status.message_id,
+        `Фото обновлены (${collected.length} шт.).`,
+      )
+      .catch(() => {});
     await renderProductMenu(ctx, productId, "send");
   } catch (e) {
     console.error("[edit photos] save failed:", e);
     const msg = e instanceof Error ? e.message : String(e);
-    await showPrompt(`Не получилось сохранить: ${msg}`, undefined);
+    await ctx.api
+      .editMessageText(
+        ctx.chat!.id,
+        status.message_id,
+        `Не получилось сохранить: ${msg}`,
+      )
+      .catch(() => {});
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Видео: заменить / добавить / удалить
+// ─────────────────────────────────────────────────────────────────────────────
+
+export async function editVideoConversation(
+  conversation: AppConversation,
+  ctx: AppContext,
+  productId: number,
+): Promise<void> {
+  const product = await conversation.external(() =>
+    prisma.product.findUnique({
+      where: { id: productId },
+      select: { videoStoragePath: true },
+    }),
+  );
+  if (!product) {
+    await ctx.reply(`Товар #${productId} не найден.`);
+    return;
+  }
+
+  const hasVideo = !!product.videoStoragePath;
+
+  if (hasVideo) {
+    // Отдельный диалог: заменить новое видео / удалить текущее / отмена.
+    const prompt = await ctx.reply(
+      "У товара уже есть видео. Пришли новое (до 20 МБ), чтобы заменить, " +
+        "или удали текущее.",
+      {
+        reply_markup: new InlineKeyboard()
+          .text("🗑 Удалить видео", "ep:vdel")
+          .row()
+          .text("Отмена", CB_CANCEL),
+      },
+    );
+
+    while (true) {
+      const next = await conversation.wait();
+
+      if (
+        next.callbackQuery?.data === CB_CANCEL ||
+        next.message?.text?.trim() === "/cancel"
+      ) {
+        if (next.callbackQuery) {
+          await next.answerCallbackQuery().catch(() => {});
+        }
+        await removeKeyboard(ctx, prompt.message_id);
+        await ctx.reply("Изменение отменено.");
+        return;
+      }
+
+      if (next.callbackQuery?.data === "ep:vdel") {
+        await next.answerCallbackQuery().catch(() => {});
+        await removeKeyboard(ctx, prompt.message_id);
+        await conversation.external(async () => {
+          const p = await prisma.product.findUnique({
+            where: { id: productId },
+            select: { videoStoragePath: true },
+          });
+          if (p?.videoStoragePath) {
+            const { error } = await supabase.storage
+              .from(SUPABASE_BUCKET)
+              .remove([p.videoStoragePath]);
+            if (error) {
+              console.warn("[edit video] remove warning:", error.message);
+            }
+          }
+          await prisma.product.update({
+            where: { id: productId },
+            data: {
+              videoStoragePath: null,
+              videoPublicUrl: null,
+              videoTelegramFileId: null,
+            },
+          });
+        });
+        await ctx.reply("Видео удалено.");
+        await renderProductMenu(ctx, productId, "send");
+        return;
+      }
+
+      const v = next.message?.video;
+      if (v) {
+        await removeKeyboard(ctx, prompt.message_id);
+        await saveVideo(conversation, ctx, productId, v.file_id, v.file_size);
+        return;
+      }
+
+      await next.reply("Жду видео или нажми кнопку.");
+    }
+  }
+
+  // Видео ещё нет — собираем через общий коллектор.
+  const collected = await collectVideo(conversation, ctx, {
+    intro: "Пришли видео вещи (до 20 МБ) или нажми «отмена без видео».",
+    skipLabel: "отмена, без видео",
+  });
+  if (collected === "cancel" || collected === null) {
+    await ctx.reply("Изменение отменено.");
+    return;
+  }
+  await saveVideo(conversation, ctx, productId, collected.fileId, undefined);
+}
+
+const MAX_VIDEO_BYTES = 20 * 1024 * 1024;
+
+async function saveVideo(
+  conversation: AppConversation,
+  ctx: AppContext,
+  productId: number,
+  fileId: string,
+  fileSize: number | undefined,
+): Promise<void> {
+  if (fileSize !== undefined && fileSize > MAX_VIDEO_BYTES) {
+    await ctx.reply(
+      "Видео больше 20 МБ — Telegram не даёт боту его скачать. Сожми и попробуй снова.",
+    );
+    return;
+  }
+
+  const status = await ctx.reply("Сохраняю видео…");
+  try {
+    await conversation.external(async () => {
+      // Удаляем старый файл (если был) и заливаем новый с ts-суффиксом,
+      // чтобы CDN-кэш не отдал старое видео по тому же пути.
+      const p = await prisma.product.findUnique({
+        where: { id: productId },
+        select: { videoStoragePath: true },
+      });
+      if (p?.videoStoragePath) {
+        const { error } = await supabase.storage
+          .from(SUPABASE_BUCKET)
+          .remove([p.videoStoragePath]);
+        if (error) {
+          console.warn("[edit video] remove old warning:", error.message);
+        }
+      }
+      const videoPath = `products/${productId}/video-${Date.now()}.mp4`;
+      const { publicUrl } = await uploadTelegramPhotoToSupabase(
+        ctx.api,
+        fileId,
+        videoPath,
+      );
+      await prisma.product.update({
+        where: { id: productId },
+        data: {
+          videoStoragePath: videoPath,
+          videoPublicUrl: publicUrl,
+          videoTelegramFileId: fileId,
+        },
+      });
+    });
+
+    await ctx.api
+      .editMessageText(ctx.chat!.id, status.message_id, "Видео обновлено.")
+      .catch(() => {});
+    await renderProductMenu(ctx, productId, "send");
+  } catch (e) {
+    console.error("[edit video] save failed:", e);
+    const msg = e instanceof Error ? e.message : String(e);
+    await ctx.api
+      .editMessageText(
+        ctx.chat!.id,
+        status.message_id,
+        `Не получилось сохранить видео: ${msg}`,
+      )
+      .catch(() => {});
   }
 }
 

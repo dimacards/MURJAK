@@ -27,7 +27,8 @@ async function fetchProducts(): Promise<ProductDto[]> {
     name: p.name,
     price: p.price,
     inStock: p.inStock,
-    photos: p.photos.map((ph) => ph.publicUrl),
+    photos: p.photos.map((ph) => ({ url: ph.publicUrl, kind: ph.kind })),
+    videoUrl: p.videoPublicUrl ?? null,
     features: p.features.map((f) => f.text),
     createdAt: p.createdAt.toISOString(),
   }));

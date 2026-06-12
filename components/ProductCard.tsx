@@ -1,11 +1,14 @@
 import Link from "next/link";
 import Image from "next/image";
 import config from "@/lib/config";
-import type { ProductDto } from "@/lib/api-types";
+import type { PhotoKind, ProductDto } from "@/lib/api-types";
 import styles from "./ProductCard.module.css";
 
 /**
  * Карточка товара в сетке. Кликабельна целиком (вся карточка → /products/[id]).
+ *
+ * preferredKind — какой тип фото показывать (MODEL «на модели» / ITEM «вещь»),
+ * управляется toggle'ом на главной. Если фото такого типа нет — первое любое.
  *
  * Иерархия:
  *   1) фото 1:1 (с плашкой «нет в наличии» поверх если inStock=false)
@@ -14,13 +17,24 @@ import styles from "./ProductCard.module.css";
  *
  * Features здесь НЕ показываем — только на открытой карточке товара.
  */
-export function ProductCard({ product }: { product: ProductDto }) {
+export function ProductCard({
+  product,
+  preferredKind,
+}: {
+  product: ProductDto;
+  preferredKind?: PhotoKind;
+}) {
+  const photo =
+    (preferredKind
+      ? product.photos.find((p) => p.kind === preferredKind)
+      : undefined) ?? product.photos[0];
+
   return (
     <Link href={`/products/${product.id}`} className={styles.card}>
       <div className={styles.imageWrap}>
-        {product.photos[0] ? (
+        {photo ? (
           <Image
-            src={product.photos[0]}
+            src={photo.url}
             alt={product.name}
             fill
             // на мобилке карточка ≈ половина viewport, на десктопе ≈ 280px

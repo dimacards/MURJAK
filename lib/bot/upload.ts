@@ -39,10 +39,20 @@ export async function uploadTelegramPhotoToSupabase(
   }
   const buffer = Buffer.from(await res.arrayBuffer());
 
-  // 3. Определить content-type по расширению
+  // 3. Определить content-type по расширению (фото и видео)
   const ext = fileInfo.file_path.split(".").pop()?.toLowerCase() ?? "jpg";
   const contentType =
-    ext === "png" ? "image/png" : ext === "webp" ? "image/webp" : "image/jpeg";
+    ext === "png"
+      ? "image/png"
+      : ext === "webp"
+        ? "image/webp"
+        : ext === "mp4"
+          ? "video/mp4"
+          : ext === "mov"
+            ? "video/quicktime"
+            : ext === "webm"
+              ? "video/webm"
+              : "image/jpeg";
 
   // 4. Залить в Supabase Storage
   const { error: uploadError } = await supabase.storage
