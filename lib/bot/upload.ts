@@ -2,7 +2,12 @@ import type { Api } from "grammy";
 import { supabase, SUPABASE_BUCKET } from "../supabase";
 
 /**
- * Скачивает фото из Telegram по file_id и заливает в Supabase Storage.
+ * Скачивает файл из Telegram по file_id и заливает в Supabase Storage.
+ * Работает для фото, PNG-документов (без сжатия, с прозрачностью) и видео.
+ *
+ * storagePathBase — путь БЕЗ расширения (например products/42/0).
+ * Реальное расширение берётся из file_path Telegram'а (jpg/png/webp/mp4…),
+ * чтобы PNG с прозрачностью не сохранялся под именем .jpg.
  *
  * Шаги:
  * 1. bot.api.getFile(file_id) → file_path
@@ -11,12 +16,11 @@ import { supabase, SUPABASE_BUCKET } from "../supabase";
  * 4. supabase.storage.getPublicUrl(path)
  *
  * Ограничения Telegram: getFile отдаёт file_path только для файлов ≤ 20 MB.
- * Для фото в сообщениях этого хватает (Telegram сжимает фото до этого размера).
  */
 export async function uploadTelegramPhotoToSupabase(
   api: Api,
   fileId: string,
-  storagePath: string
+  storagePathBase: string
 ): Promise<{ storagePath: string; publicUrl: string }> {
   const token = process.env.BOT_TOKEN;
   if (!token) throw new Error("BOT_TOKEN не задан");
@@ -39,7 +43,7 @@ export async function uploadTelegramPhotoToSupabase(
   }
   const buffer = Buffer.from(await res.arrayBuffer());
 
-  // 3. Определить content-type по расширению (фото и видео)
+  // 3. Определить расширение и content-type из реального file_path
   const ext = fileInfo.file_path.split(".").pop()?.toLowerCase() ?? "jpg";
   const contentType =
     ext === "png"
@@ -53,6 +57,7 @@ export async function uploadTelegramPhotoToSupabase(
             : ext === "webm"
               ? "video/webm"
               : "image/jpeg";
+  const storagePath = `${storagePathBase}.${ext}`;
 
   // 4. Залить в Supabase Storage
   const { error: uploadError } = await supabase.storage

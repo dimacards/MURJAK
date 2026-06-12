@@ -202,11 +202,11 @@ export async function editPhotosConversation(
       //    старое изображение под тем же путём)
       const ts = Date.now();
       for (let i = 0; i < collected.length; i++) {
-        const storagePath = `products/${productId}/${ts}-${i}.jpg`;
-        const { publicUrl } = await uploadTelegramPhotoToSupabase(
+        // путь без расширения — реальное подставит upload (jpg/png/webp)
+        const { storagePath, publicUrl } = await uploadTelegramPhotoToSupabase(
           ctx.api,
           collected[i].fileId,
-          storagePath,
+          `products/${productId}/${ts}-${i}`,
         );
         await prisma.photo.create({
           data: {
@@ -378,16 +378,15 @@ async function saveVideo(
           console.warn("[edit video] remove old warning:", error.message);
         }
       }
-      const videoPath = `products/${productId}/video-${Date.now()}.mp4`;
-      const { publicUrl } = await uploadTelegramPhotoToSupabase(
+      const { storagePath, publicUrl } = await uploadTelegramPhotoToSupabase(
         ctx.api,
         fileId,
-        videoPath,
+        `products/${productId}/video-${Date.now()}`,
       );
       await prisma.product.update({
         where: { id: productId },
         data: {
-          videoStoragePath: videoPath,
+          videoStoragePath: storagePath,
           videoPublicUrl: publicUrl,
           videoTelegramFileId: fileId,
         },

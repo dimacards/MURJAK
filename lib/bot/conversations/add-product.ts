@@ -309,11 +309,33 @@ async function collectPhotosOfKind(
       return "cancel";
     }
 
-    if (next.message?.photo) {
-      const sizes = next.message.photo;
-      ids.push(sizes[sizes.length - 1].file_id);
+    // Принимаем и обычные фото, и изображения-документы («Файл» без сжатия).
+    // PNG с прозрачностью выживает ТОЛЬКО как документ — обычная отправка
+    // фото пережимает в JPEG и теряет альфа-канал.
+    const photoSizes = next.message?.photo;
+    const doc = next.message?.document;
+    const isImageDoc =
+      doc !== undefined &&
+      doc.mime_type !== undefined &&
+      /^image\/(png|jpe?g|webp)$/.test(doc.mime_type);
 
-      const mgi = next.message.media_group_id;
+    if (doc && !isImageDoc) {
+      await next.reply(
+        "Такой файл не подходит — жду изображение (png/jpg/webp) или фото.",
+      );
+      continue;
+    }
+    if (isImageDoc && doc.file_size !== undefined && doc.file_size > 20 * 1024 * 1024) {
+      await next.reply("Файл больше 20 МБ — Telegram не даёт боту его скачать.");
+      continue;
+    }
+
+    if (photoSizes || isImageDoc) {
+      ids.push(
+        photoSizes ? photoSizes[photoSizes.length - 1].file_id : doc!.file_id,
+      );
+
+      const mgi = next.message!.media_group_id;
       const isNewBatch =
         mgi === undefined || batchKey === undefined || mgi !== batchKey;
       if (isNewBatch) {
@@ -622,11 +644,11 @@ async function publish(
         data: { name: data.name, price: data.price, inStock: true },
       });
       for (let i = 0; i < data.photos.length; i++) {
-        const storagePath = `products/${product.id}/${i}.jpg`;
-        const { publicUrl } = await uploadTelegramPhotoToSupabase(
+        // путь без расширения — реальное (.jpg/.png/.webp) подставит upload
+        const { storagePath, publicUrl } = await uploadTelegramPhotoToSupabase(
           ctx.api,
           data.photos[i].fileId,
-          storagePath,
+          `products/${product.id}/${i}`,
         );
         await prisma.photo.create({
           data: {
@@ -640,16 +662,15 @@ async function publish(
         });
       }
       if (data.video) {
-        const videoPath = `products/${product.id}/video.mp4`;
-        const { publicUrl } = await uploadTelegramPhotoToSupabase(
+        const { storagePath, publicUrl } = await uploadTelegramPhotoToSupabase(
           ctx.api,
           data.video.fileId,
-          videoPath,
+          `products/${product.id}/video`,
         );
         await prisma.product.update({
           where: { id: product.id },
           data: {
-            videoStoragePath: videoPath,
+            videoStoragePath: storagePath,
             videoPublicUrl: publicUrl,
             videoTelegramFileId: data.video.fileId,
           },

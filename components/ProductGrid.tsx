@@ -13,7 +13,8 @@ import styles from "./ProductGrid.module.css";
  * Если у товара нет фото выбранного типа — fallback на первое любое.
  */
 export function ProductGrid({ items }: { items: ProductDto[] }) {
-  const [kind, setKind] = useState<PhotoKind>("MODEL");
+  // По умолчанию показываем фото самой вещи (ITEM)
+  const [kind, setKind] = useState<PhotoKind>("ITEM");
 
   if (items.length === 0) {
     return (
