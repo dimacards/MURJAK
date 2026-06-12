@@ -1,21 +1,16 @@
 .root {
-  display: flex;
-  flex-direction: column;
-  gap: 0;
+  position: relative;
   min-width: 0;
   max-width: 100%;
-  /* галерея заполняет колонку медиа-блока целиком */
+  /* заполняет колонку медиа-блока (на десктопе колонка — квадрат 1:1) */
   height: 100%;
 }
 
-/* === Большое фото (стандарт 1:1) === */
-/* Квадратность обеспечивает родитель: ширина .galleryCol на десктопе
-   равна высоте main (100svh - ряд миниатюр). На мобилке — aspect-ratio. */
+/* === Большое фото === */
 .main {
   position: relative;
   width: 100%;
-  flex: 1;
-  min-height: 0;
+  height: 100%;
   background: #0a0a0a;
   overflow: hidden;
   user-select: none;
@@ -24,9 +19,10 @@
   touch-action: pan-y;
 }
 
+/* мобилка: высота колонки не задана — квадрат через aspect-ratio */
 @media (max-width: 767px) {
   .main {
-    flex: none;
+    height: auto;
     aspect-ratio: 1 / 1;
   }
 }
@@ -53,6 +49,7 @@
   padding-bottom: 2px;
   transition: background 0.15s ease, transform 0.1s ease;
   backdrop-filter: blur(4px);
+  z-index: 2;
 }
 
 @media (min-width: 480px) {
@@ -90,10 +87,10 @@
   transform: translateY(-50%) scale(0.95);
 }
 
-/* Счётчик 1/N */
+/* Счётчик 1/N — сверху справа (низ занят миниатюрами) */
 .counter {
   position: absolute;
-  bottom: var(--space-sm);
+  top: var(--space-sm);
   right: var(--space-sm);
   padding: 4px 10px;
   background: rgba(0, 0, 0, 0.5);
@@ -102,17 +99,23 @@
   border-radius: var(--radius-full);
   font-variant-numeric: tabular-nums;
   pointer-events: none;
+  z-index: 2;
 }
 
 @media (min-width: 480px) {
   .counter {
-    bottom: var(--space-md);
+    top: var(--space-md);
     right: var(--space-md);
   }
 }
 
-/* === Ряд thumbnails === */
+/* === Ряд thumbnails — поверх нижней части фото === */
 .thumbs {
+  position: absolute;
+  bottom: var(--space-sm);
+  left: var(--space-sm);
+  right: var(--space-sm);
+  z-index: 2;
   display: flex;
   justify-content: center;
   gap: var(--space-sm);
@@ -120,12 +123,6 @@
   scroll-snap-type: x mandatory;
   -webkit-overflow-scrolling: touch;
   scrollbar-width: none;
-  padding: var(--space-sm) 0;
-  flex-shrink: 0;
-  /* width:0 + min-width:100% — ряд миниатюр не должен распирать колонку
-     шире квадратного фото (ширину колонки задаёт только .main) */
-  width: 0;
-  min-width: 100%;
 }
 
 .thumbs::-webkit-scrollbar {
@@ -133,23 +130,25 @@
 }
 
 .thumb {
-  flex: 0 0 60px;
-  width: 60px;
-  height: 60px;
+  flex: 0 0 48px;
+  width: 48px;
+  height: 48px;
   padding: 0;
-  background: rgba(255, 255, 255, 0.04);
+  background: rgba(0, 0, 0, 0.4);
   overflow: hidden;
   scroll-snap-align: start;
-  border: 2px solid transparent;
+  border: 2px solid rgba(255, 255, 255, 0.35);
+  border-radius: var(--radius-sm);
   transition: border-color 0.15s ease, opacity 0.15s ease;
-  opacity: 0.6;
+  opacity: 0.75;
+  backdrop-filter: blur(4px);
 }
 
-@media (min-width: 480px) {
+@media (min-width: 768px) {
   .thumb {
-    flex-basis: 70px;
-    width: 70px;
-    height: 70px;
+    flex-basis: 56px;
+    width: 56px;
+    height: 56px;
   }
 }
 

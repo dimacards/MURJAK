@@ -3,11 +3,14 @@
   background: #000;
 }
 
-/* Десктоп: всё умещается в один экран, скролла нет */
+/* Десктоп: медиа сверху + карточка под ними, всё в один экран без скролла.
+   Высота медиа = экран минус карточка (flex: 1). */
 @media (min-width: 768px) {
   .main {
     height: 100svh;
     overflow: hidden;
+    display: flex;
+    flex-direction: column;
   }
 }
 
@@ -31,8 +34,8 @@
 }
 
 /* ===== Медиа-блок ===== */
-/* Стандарт: фото 1:1 (квадратная галерея), видео вертикальное 9:16.
-   На десктопе оба на всю высоту экрана, вплотную, по центру. */
+/* Стандарт: фото 1:1 (квадратная галерея, миниатюры поверх),
+   видео вертикальное 9:16. На десктопе вплотную, по центру. */
 .mediaRow {
   display: flex;
   flex-direction: column;
@@ -42,9 +45,10 @@
 
 @media (min-width: 768px) {
   .mediaRow {
+    flex: 1;
+    min-height: 0;
     flex-direction: row;
     justify-content: center;
-    height: 100%;
   }
 }
 
@@ -55,11 +59,11 @@
 
 @media (min-width: 768px) {
   .galleryCol {
-    /* ширина колонки = высоте большого фото (экран минус ряд миниатюр
-       ~86px) → фото получается квадратным 1:1 */
-    width: calc(100svh - 86px);
-    flex-shrink: 0;
+    width: auto;
     height: 100%;
+    /* квадратное фото: ширина = высоте медиа-блока */
+    aspect-ratio: 1 / 1;
+    flex-shrink: 0;
   }
 }
 
@@ -87,8 +91,7 @@
   object-fit: cover;
 }
 
-/* мобилка: видео не выше 70% экрана (вертикальное 9:16 от полной ширины
-   было бы слишком высоким) */
+/* мобилка: видео не выше 70% экрана */
 @media (max-width: 767px) {
   .videoCol {
     max-height: 70svh;
@@ -102,25 +105,19 @@
   }
 }
 
-/* ===== Инфо-карточка («игральная карта») ===== */
-/* Десктоп: прикреплена к нижней грани экрана, перекрывает медиа. */
+/* ===== Инфо-карточка («игральная карта») — под медиа ===== */
 .cardWrap {
   position: relative;
   z-index: 2;
   display: flex;
   justify-content: center;
-  padding: 0 var(--space-md) var(--space-lg);
-  margin-top: -72px;
+  padding: var(--space-md);
 }
 
 @media (min-width: 768px) {
   .cardWrap {
-    position: absolute;
-    bottom: 0;
-    left: 0;
-    right: 0;
-    margin-top: 0;
-    padding: 0;
+    flex-shrink: 0;
+    padding: var(--space-md) var(--space-md) var(--space-lg);
   }
 }
 
