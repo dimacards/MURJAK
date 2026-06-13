@@ -31,10 +31,10 @@
   /* Размеры контента */
   --container-max: 1600px;
 
-  /* Шрифты (подключаются в layout.tsx) */
-  --font-sans: var(--font-geist-sans), system-ui, -apple-system,
+  /* Шрифты (подключаются в layout.tsx). Основной — Manrope. */
+  --font-sans: var(--font-manrope), system-ui, -apple-system,
     "Helvetica Neue", Arial, sans-serif;
-  --font-heading: var(--font-roboto), var(--font-sans);
+  --font-heading: var(--font-sans);
 }
 
 /* ===== Reset ===== */

@@ -14,7 +14,7 @@ import styles from "./ProductDetails.module.css";
  *
  * По клику на «Полное описание» блок плавно перемещается в центр экрана,
  * остальная страница затемняется, раскрывается список особенностей.
- * Закрытие — «✕ Скрыть описание» или клик по затемнению.
+ * Закрытие — кнопка «Свернуть описание» или клик по затемнению.
  */
 export function ProductDetails({ product }: { product: ProductDto }) {
   const [open, setOpen] = useState(false);
@@ -36,6 +36,8 @@ export function ProductDetails({ product }: { product: ProductDto }) {
     </span>
   );
 
+  const hasFeatures = product.features.length > 0;
+
   return (
     <>
       {/* затемнение всего остального; клик по нему закрывает */}
@@ -49,30 +51,6 @@ export function ProductDetails({ product }: { product: ProductDto }) {
         className={`${styles.card} ${open ? styles.cardOpen : ""}`}
         aria-label="Информация о товаре"
       >
-        {/* «✕ Скрыть описание» — виден только в раскрытом состоянии */}
-        <button
-          type="button"
-          className={styles.hideBtn}
-          onClick={() => setOpen(false)}
-          tabIndex={open ? 0 : -1}
-        >
-          <svg
-            width="16"
-            height="16"
-            viewBox="0 0 16 16"
-            fill="none"
-            aria-hidden="true"
-          >
-            <path
-              d="M3 3 L13 13 M13 3 L3 13"
-              stroke="currentColor"
-              strokeWidth="1.6"
-              strokeLinecap="round"
-            />
-          </svg>
-          <span>Скрыть описание</span>
-        </button>
-
         <h1 className={styles.title}>{product.name}</h1>
         <div className={styles.price}>
           {product.price} {config.currency}
@@ -83,7 +61,7 @@ export function ProductDetails({ product }: { product: ProductDto }) {
         )}
 
         {/* особенности — раскрываются вместе с блоком */}
-        {product.features.length > 0 && (
+        {hasFeatures && (
           <div className={styles.featuresWrap}>
             <ul className={styles.features}>
               {product.features.map((f, i) => (
@@ -96,14 +74,13 @@ export function ProductDetails({ product }: { product: ProductDto }) {
         )}
 
         <div className={styles.actions}>
-          {product.features.length > 0 && (
+          {hasFeatures && (
             <button
               type="button"
-              className={`${styles.descBtn} ${open ? styles.descBtnHidden : ""}`}
-              onClick={() => setOpen(true)}
-              tabIndex={open ? -1 : 0}
+              className={styles.descBtn}
+              onClick={() => setOpen((v) => !v)}
             >
-              Полное описание
+              {open ? "Свернуть описание" : "Полное описание"}
             </button>
           )}
           {buyButton}
