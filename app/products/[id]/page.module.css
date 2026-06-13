@@ -3,10 +3,13 @@
   background: #000;
 }
 
-/* Десктоп: три колонки в один экран без скролла —
-   каруселька | описание | видео, все по высоте экрана. */
+/* Десктоп: медиа + фиксированный блок информации в один экран без скролла.
+   --card-half — на сколько свёрнутый блок (482px, ~150px высотой) наезжает
+   на медиа: ровно половину своей высоты. Остальная половина — на чёрном
+   фоне под медиа, куда уходит fade. */
 @media (min-width: 768px) {
   .main {
+    --card-half: 88px;
     height: 100svh;
     overflow: hidden;
   }
@@ -36,6 +39,7 @@
    ВСЮ оставшуюся ширину страницы, высота — высота страницы.
    Блок информации — отдельный fixed-элемент (см. ProductDetails). */
 .mediaRow {
+  position: relative;
   display: flex;
   flex-direction: column;
   gap: 0;
@@ -45,8 +49,23 @@
 @media (min-width: 768px) {
   .mediaRow {
     flex-direction: row;
-    height: 100%;
+    /* медиа короче высоты экрана — свёрнутый блок перекрывает его лишь
+       наполовину (нижняя половина блока висит на чёрном фоне ниже медиа) */
+    height: calc(100svh - 24px - var(--card-half));
   }
+}
+
+/* fade в чёрный фон внизу фото и видео */
+.mediaRow::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 140px;
+  background: linear-gradient(to bottom, transparent, #000);
+  pointer-events: none;
+  z-index: 1;
 }
 
 /* Фото — fill всей оставшейся ширины */

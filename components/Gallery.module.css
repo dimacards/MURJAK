@@ -4,7 +4,9 @@
   height: 100%;
   min-width: 0;
   background: #0a0a0a;
-  overflow: hidden;
+  /* visible — увеличенная при hover миниатюра НЕ обрезается фреймом
+     (внутренний клип делает .track) */
+  overflow: visible;
 }
 
 /* === Лента фото со scroll-snap === */
@@ -36,8 +38,9 @@
   scroll-snap-stop: always;
 }
 
+/* contain — фото показывается в своём формате, не подгоняется под квадрат */
 .slideImage {
-  object-fit: cover;
+  object-fit: contain;
 }
 
 @media (max-width: 767px) {
@@ -58,17 +61,17 @@
   z-index: 2;
   display: flex;
   flex-direction: column;
+  align-items: flex-start;
   gap: var(--space-sm);
-  /* лента миниатюр не выходит за пределы фрейма и не обрезается:
-     ограничиваем по высоте и даём собственный скролл */
-  max-height: calc(100% - var(--space-2xl));
-  padding: 4px;
-  overflow-y: auto;
-  scrollbar-width: none;
+  /* без overflow: увеличенная миниатюра не обрезается. Кол-во фото ≤10,
+     36px+зазоры умещаются по высоте кадра. */
+  transition: gap 0.2s ease;
 }
 
-.thumbs::-webkit-scrollbar {
-  display: none;
+/* при наведении на любую миниатюру — остальные раздвигаются, расстояние
+   между всеми остаётся одинаковым */
+.thumbs:has(.thumb:hover) {
+  gap: 16px;
 }
 
 @media (max-width: 767px) {
@@ -79,25 +82,38 @@
     bottom: var(--space-md);
     transform: translateX(-50%);
     flex-direction: row;
-    max-height: none;
+    align-items: flex-end;
     max-width: calc(100% - var(--space-lg));
     overflow-x: auto;
-    overflow-y: hidden;
+    overflow-y: visible;
+    scrollbar-width: none;
+  }
+  .thumbs::-webkit-scrollbar {
+    display: none;
   }
 }
 
 .thumb {
   flex: 0 0 auto;
-  width: 40px;
-  height: 40px;
+  width: 36px;
+  height: 36px;
   padding: 0;
-  overflow: visible;
   border-radius: 4px;
-  /* в покое — полупрозрачные с серым строуком */
+  /* растёт вправо/вверх/вниз от левой грани (origin left center),
+     левый край закреплён */
+  transform-origin: left center;
+  /* в покое — полупрозрачные */
   opacity: 0.55;
   transition:
     opacity 0.2s ease,
     transform 0.2s ease;
+}
+
+@media (max-width: 767px) {
+  .thumb {
+    /* на мобилке растут вверх от нижней грани */
+    transform-origin: center bottom;
+  }
 }
 
 .thumbImage {
@@ -106,16 +122,16 @@
   object-fit: cover;
   display: block;
   border-radius: 4px;
+  /* серый строук в стиле сайта */
   border: 1px solid var(--color-border);
   transition: border-color 0.2s ease;
 }
 
-/* hover — увеличивается ПОВЕРХ соседей (scale, без обрезки),
-   становится ярче */
+/* hover — увеличивается ПОВЕРХ соседей (scale, не обрезаясь), ярче */
 @media (hover: hover) and (pointer: fine) {
   .thumb:hover {
     opacity: 1;
-    transform: scale(1.5);
+    transform: scale(1.6);
     z-index: 3;
   }
 }

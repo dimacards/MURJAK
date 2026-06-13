@@ -17,13 +17,14 @@
 /* ===== Блок информации (макет: #1a1a1a, радиус 44, тени) ===== */
 /* Свёрнут — закреплён у нижней грани по центру. Раскрытие — transform
    до центра экрана; transform интерполируется плавно. */
+/* gentle easing 600ms (плавно начинается и плавно тормозит) */
 .card {
   position: fixed;
   bottom: 24px;
   left: 50%;
   transform: translate(-50%, 0);
   z-index: 31;
-  width: min(560px, 92vw);
+  width: min(482px, 92vw);
   display: flex;
   flex-direction: column;
   gap: 16px;
@@ -33,10 +34,14 @@
   box-shadow:
     0 0 5px rgba(0, 0, 0, 0.1),
     0 0 20px rgba(0, 0, 0, 0.25);
-  transition: transform 0.45s cubic-bezier(0.22, 0.8, 0.36, 1);
+  transition:
+    transform 0.6s cubic-bezier(0.4, 0, 0.2, 1),
+    width 0.6s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
+/* раскрытая — шире и переезжает в центр экрана */
 .cardOpen {
+  width: min(560px, 92vw);
   transform: translate(-50%, calc(-50svh + 50% + 24px));
 }
 
@@ -97,9 +102,9 @@
   opacity: 0;
   overflow: hidden;
   transition:
-    max-height 0.45s cubic-bezier(0.22, 0.8, 0.36, 1),
-    opacity 0.35s ease,
-    margin 0.45s ease;
+    max-height 0.6s cubic-bezier(0.4, 0, 0.2, 1),
+    opacity 0.4s ease,
+    margin 0.6s cubic-bezier(0.4, 0, 0.2, 1);
   margin-top: -16px;
 }
 
