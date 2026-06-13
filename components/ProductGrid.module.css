@@ -1,30 +1,14 @@
-/* ===== Хедер-фрейм (как инфо-карточка): заголовок + фильтр ===== */
+/* ===== Хедер-фрейм (как инфо-карточка): только иконки-фильтр ===== */
 .headerCard {
   display: flex;
-  flex-direction: column;
   align-items: center;
-  gap: 12px;
+  justify-content: center;
   background: #1a1a1a;
   border-radius: 44px;
-  padding: 16px 32px;
+  padding: 12px 20px;
   box-shadow:
     0 0 5px rgba(0, 0, 0, 0.1),
     0 0 20px rgba(0, 0, 0, 0.25);
-}
-
-.headerTitle {
-  font-family: var(--font-heading);
-  font-weight: 600;
-  font-size: 20px;
-  line-height: 1.4;
-  letter-spacing: -0.28px;
-  color: #fff;
-}
-
-@media (min-width: 768px) {
-  .headerTitle {
-    font-size: 24px;
-  }
 }
 
 /* ===== Фильтр-иконки ===== */
@@ -68,10 +52,13 @@
 }
 
 /* ===== Сетка ===== */
+/* Flex-wrap + justify-content: center — карточки центрируются при любом
+   количестве (одна карточка тоже по центру, а не у левого края). */
 .grid {
   list-style: none;
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
   gap: var(--space-lg) var(--space-md);
   width: 100%;
   max-width: 1502px;
@@ -80,13 +67,20 @@
 
 @media (min-width: 768px) {
   .grid {
-    grid-template-columns: repeat(3, 1fr);
     gap: var(--space-2xl) 48px;
   }
 }
 
+/* фикс-ширина ячейки: 2 в ряд на мобилке, ~3 на десктопе */
 .cell {
+  flex: 0 0 calc(50% - var(--space-md) / 2);
   min-width: 0;
+}
+
+@media (min-width: 768px) {
+  .cell {
+    flex-basis: 440px;
+  }
 }
 
 .empty {

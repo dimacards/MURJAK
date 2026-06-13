@@ -59,9 +59,12 @@ export function ProductCard({
         )}
       </div>
 
-      <div className={styles.title}>{product.name}</div>
-      <div className={styles.price}>
-        {product.price} {config.currency}
+      {/* описание (название + цена) во фрейме под фото — как инфо-карточка */}
+      <div className={styles.info}>
+        <div className={styles.title}>{product.name}</div>
+        <div className={styles.price}>
+          {product.price} {config.currency}
+        </div>
       </div>
     </Link>
   );

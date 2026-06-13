@@ -25,9 +25,8 @@ export function ProductGrid({ items }: { items: ProductDto[] }) {
 
   return (
     <>
-      {/* Заголовок + фильтр одежда/модель — во фрейме как у инфо-карточки */}
+      {/* Фильтр одежда/модель — во фрейме как у инфо-карточки */}
       <div className={styles.headerCard}>
-        <h1 className={styles.headerTitle}>Товары</h1>
         <div className={styles.kindToggle} role="group" aria-label="Вид фото">
           <button
             type="button"
