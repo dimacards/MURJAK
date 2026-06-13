@@ -39,23 +39,6 @@
   min-height: 60vh;
 }
 
-/* SVG-текстура, разбавляющая чёрный фон.
-   Размер ФИКСИРОВАННЫЙ как в макете (1950×2857, сдвиг -22px, отзеркалена
-   по вертикали): не масштабируется и не деформируется, лишнее уходит
-   за края секции (overflow: hidden на .products). */
-.productsTexture {
-  position: absolute;
-  left: 50%;
-  top: -22px;
-  width: 1950px;
-  height: 2857px;
-  background-image: url("/brand/bg-texture.svg");
-  background-size: 100% 100%;
-  background-repeat: no-repeat;
-  transform: translateX(-50%) scaleY(-1);
-  pointer-events: none;
-}
-
 .productsInner {
   position: relative;
   display: flex;
@@ -71,15 +54,3 @@
   }
 }
 
-.productsTitle {
-  font-family: var(--font-heading);
-  font-weight: 500;
-  font-size: 20px;
-  color: #fff;
-}
-
-@media (min-width: 768px) {
-  .productsTitle {
-    font-size: 28px;
-  }
-}

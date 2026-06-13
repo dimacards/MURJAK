@@ -66,9 +66,7 @@ export default async function Home() {
       </section>
 
       <section className={styles.products}>
-        <div className={styles.productsTexture} aria-hidden="true" />
         <div className={styles.productsInner}>
-          <h1 className={styles.productsTitle}>Товары</h1>
           <ProductGrid items={items} />
         </div>
       </section>

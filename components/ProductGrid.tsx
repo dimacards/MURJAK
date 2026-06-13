@@ -25,37 +25,41 @@ export function ProductGrid({ items }: { items: ProductDto[] }) {
 
   return (
     <>
-      <div className={styles.kindToggle} role="group" aria-label="Вид фото">
-        <button
-          type="button"
-          className={`${styles.kindBtn} ${kind === "ITEM" ? styles.kindBtnActive : ""}`}
-          onClick={() => setKind("ITEM")}
-          aria-pressed={kind === "ITEM"}
-          aria-label="Показать фото вещи"
-        >
-          <Image
-            src="/brand/icon-item.svg"
-            alt=""
-            width={38}
-            height={38}
-            className={styles.kindIcon}
-          />
-        </button>
-        <button
-          type="button"
-          className={`${styles.kindBtn} ${kind === "MODEL" ? styles.kindBtnActive : ""}`}
-          onClick={() => setKind("MODEL")}
-          aria-pressed={kind === "MODEL"}
-          aria-label="Показать фото на модели"
-        >
-          <Image
-            src="/brand/icon-model.svg"
-            alt=""
-            width={38}
-            height={38}
-            className={styles.kindIcon}
-          />
-        </button>
+      {/* Заголовок + фильтр одежда/модель — во фрейме как у инфо-карточки */}
+      <div className={styles.headerCard}>
+        <h1 className={styles.headerTitle}>Товары</h1>
+        <div className={styles.kindToggle} role="group" aria-label="Вид фото">
+          <button
+            type="button"
+            className={`${styles.kindBtn} ${kind === "ITEM" ? styles.kindBtnActive : ""}`}
+            onClick={() => setKind("ITEM")}
+            aria-pressed={kind === "ITEM"}
+            aria-label="Показать фото вещи"
+          >
+            <Image
+              src="/brand/icon-item.svg"
+              alt=""
+              width={38}
+              height={38}
+              className={styles.kindIcon}
+            />
+          </button>
+          <button
+            type="button"
+            className={`${styles.kindBtn} ${kind === "MODEL" ? styles.kindBtnActive : ""}`}
+            onClick={() => setKind("MODEL")}
+            aria-pressed={kind === "MODEL"}
+            aria-label="Показать фото на модели"
+          >
+            <Image
+              src="/brand/icon-model.svg"
+              alt=""
+              width={38}
+              height={38}
+              className={styles.kindIcon}
+            />
+          </button>
+        </div>
       </div>
 
       <ul className={styles.grid}>
