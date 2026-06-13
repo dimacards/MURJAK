@@ -1,4 +1,26 @@
-/* ===== Hero: фуллскрин-видео + логотип ===== */
+/* ===== Логотип-оверлей (единый для hero и брендового блока) ===== */
+/* fixed на весь вьюпорт; логотип позиционируется по центру, трансформ
+   задаётся из JS (переезд/масштаб по scrollY). */
+.logoOverlay {
+  position: fixed;
+  inset: 0;
+  z-index: 5;
+  pointer-events: none;
+}
+
+.logoImg {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  height: 32px; /* базовая (докед) высота; в hero увеличивается transform'ом */
+  width: auto;
+  transform-origin: center;
+  /* белый логотип «вычитается» из фона — как в макете */
+  mix-blend-mode: difference;
+  will-change: transform;
+}
+
+/* ===== Hero: фуллскрин-видео ===== */
 .hero {
   position: relative;
   height: 100svh;
@@ -12,32 +34,29 @@
   width: 100%;
   height: 100%;
   object-fit: cover;
-  /* фон «меняет настроение» при снапе — синхронно с доездом */
-  transition: opacity 0.85s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-.heroLogoWrap {
+/* ===== Брендовый блок (цель снапа): логотип сверху + описание ===== */
+.brand {
+  position: relative;
+  height: 100svh;
+  background: #000;
+  overflow: hidden;
+}
+
+.brandDesc {
   position: absolute;
-  inset: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 0 4vw;
-}
-
-.heroLogo {
-  width: 100%;
-  max-width: 1760px;
-  height: auto;
-  /* белый логотип «вычитается» из видео — как в макете */
-  mix-blend-mode: difference;
-}
-
-/* ===== Состояние heroDocked ===== */
-/* логотип пока НЕ трансформируется (по запросу); меняется только
-   «настроение» фона — видео слегка темнеет синхронно с доездом снапа */
-.heroDocked .heroVideo {
-  opacity: 0.55;
+  left: 50%;
+  /* чуть ниже центра — под приземлившимся 32px-логотипом */
+  top: calc(50% + 6px);
+  transform: translateX(-50%);
+  width: min(640px, 88vw);
+  text-align: center;
+  font-family: var(--font-heading);
+  font-weight: 500;
+  font-size: 16px;
+  line-height: 1.5;
+  color: rgba(255, 255, 255, 0.85);
 }
 
 /* ===== Секция товаров ===== */
@@ -45,9 +64,6 @@
   position: relative;
   background: #000;
   overflow: hidden;
-  /* минимум в экран: чтобы доезд снапа всегда мог поставить начало секции
-     ровно к верху вьюпорта (иначе при малом контенте страница упирается
-     в дно раньше цели) */
   min-height: 100svh;
 }
 
