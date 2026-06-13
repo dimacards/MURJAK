@@ -12,6 +12,8 @@
   width: 100%;
   height: 100%;
   object-fit: cover;
+  /* фон «меняет настроение» при снапе — синхронно с доездом */
+  transition: opacity 0.85s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .heroLogoWrap {
@@ -29,6 +31,19 @@
   height: auto;
   /* белый логотип «вычитается» из видео — как в макете */
   mix-blend-mode: difference;
+  /* анимация трансформации первого экрана, синхронная с доездом снапа */
+  transition: transform 0.85s cubic-bezier(0.4, 0, 0.2, 1);
+  will-change: transform;
+}
+
+/* ===== Состояние heroDocked — анимация «уезда» первого экрана ===== */
+/* логотип уменьшается и уезжает вверх; видео слегка темнеет */
+.heroDocked .heroLogo {
+  transform: scale(0.34) translateY(-78vh);
+}
+
+.heroDocked .heroVideo {
+  opacity: 0.45;
 }
 
 /* ===== Секция товаров ===== */
@@ -36,7 +51,10 @@
   position: relative;
   background: #000;
   overflow: hidden;
-  min-height: 60vh;
+  /* минимум в экран: чтобы доезд снапа всегда мог поставить начало секции
+     ровно к верху вьюпорта (иначе при малом контенте страница упирается
+     в дно раньше цели) */
+  min-height: 100svh;
 }
 
 .productsInner {
