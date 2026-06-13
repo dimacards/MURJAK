@@ -9,44 +9,50 @@ import { ProductGrid } from "./ProductGrid";
 import styles from "@/app/page.module.css";
 
 /**
- * Снап-механика первого экрана.
+ * Снап-механика первого экрана — симметричная, в обе стороны.
  *
  * Конечный автомат:
- *   intro    — hero на весь экран, свободный скролл придержан
+ *   hero     — первый экран на весь вьюпорт, scrollY придержан на 0
  *              (preventDefault на wheel/touchmove/клавишах-вниз).
- *              Первый жест вниз — триггер.
- *   snapping — управляемый rAF-доезд до начала секции «Товары»
- *              (easeInOutCubic, без инерции, ровно в точку) + анимация
- *              трансформации hero (класс heroDocked). Любой ввод гасится.
- *   docked   — после доезда (+50 мс пауза) обычный свободный скролл.
+ *              Жест ВНИЗ — триггер снапа вперёд.
+ *   snapping — управляемый rAF-доезд (easeInOutCubic) до цели; без инерции,
+ *              ровно в точку. Ввод гасится. Придержка снимается НЕ по
+ *              таймеру, а по «тишине» ввода (см. ниже) — иначе остаточные
+ *              инерционные события трекпада/тача доезжали бы мимо.
+ *   docked   — зона товаров. Свободный скролл внутри, но верхняя граница
+ *              (начало секции) придержана: жест ВВЕРХ на границе — триггер
+ *              обратного снапа к hero.
  *
  * Переходы:
- *   intro    --(жест вниз)-->                 snapping
- *   snapping --(доезд завершён, +50мс)-->      docked
- *   docked   --(scrollY доехал до 0,          intro
- *               авто-возврат не подавлен)-->
+ *   hero   --(жест вниз)-->                       snapping --(доезд+тишина)--> docked
+ *   docked --(жест вверх на верхней границе)-->    snapping --(доезд+тишина)--> hero
  *
- * suppressReturnRef — на время будущей программной навигации (меню → блок)
- * подавляет авто-возврат в intro, чтобы геройское состояние не мелькало.
+ * Снятие инерции («доезжает чуть-чуть»): трекпад/тач после жеста шлют
+ * momentum-события ещё ~0.5–1с. Поэтому после завершения твина мы НЕ
+ * переключаемся сразу — держим целевую позицию и ждём, пока поток событий
+ * замолчит на QUIET мс, гася каждый остаточный импульс. Это и есть отсутствие
+ * «фантомного» доезда.
+ *
+ * suppressRef — подавляет авто-снап на время будущей программной навигации
+ * (меню → блок), чтобы переходы не срабатывали при плавном программном скролле.
  */
-type SnapState = "intro" | "snapping" | "docked";
+type SnapState = "hero" | "snapping" | "docked";
 
 const SNAP_DURATION = 850; // мс — длительность управляемого доезда
-const RELEASE_PAUSE = 50; // мс — пауза перед снятием придержки (успокоить поток)
+const QUIET_MS = 140; // мс «тишины» ввода перед снятием придержки
+const EDGE = 2; // px — допуск к границе секции
+const THRESH = 6; // px — порог тач-жеста
 
 function easeInOutCubic(t: number): number {
   return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
 }
 
 export function HomeShell({ items }: { items: ProductDto[] }) {
-  const [state, setState] = useState<SnapState>("intro");
+  const [state, setState] = useState<SnapState>("hero");
 
-  // Refs для чтения актуального состояния внутри слушателей (без stale-closure).
-  const stateRef = useRef<SnapState>("intro");
+  const stateRef = useRef<SnapState>("hero");
   const productsRef = useRef<HTMLElement>(null);
-  const rafRef = useRef<number | null>(null);
-  const touchStartYRef = useRef<number | null>(null);
-  const suppressReturnRef = useRef(false);
+  const suppressRef = useRef(false);
 
   const setSnapState = (s: SnapState) => {
     stateRef.current = s;
@@ -54,101 +60,154 @@ export function HomeShell({ items }: { items: ProductDto[] }) {
   };
 
   useEffect(() => {
-    // Всегда стартуем с верха: гасим восстановление позиции браузером.
     if ("scrollRestoration" in history) history.scrollRestoration = "manual";
     window.scrollTo(0, 0);
 
-    /** Управляемый доезд до targetY за duration, без инерции, с колбэком. */
-    const tweenTo = (targetY: number, duration: number, onDone: () => void) => {
-      if (rafRef.current) cancelAnimationFrame(rafRef.current);
+    let tweenRaf: number | null = null;
+    let watchdog: number | null = null;
+    let holdTarget = 0; // куда «прилипает» позиция во время снапа
+    let tweenDone = false; // твин доехал, ждём тишины ввода
+    let lastInput = 0; // время последнего ввода (для QUIET)
+    let touchStartY: number | null = null;
+
+    const productsTop = () =>
+      productsRef.current ? productsRef.current.offsetTop : window.innerHeight;
+
+    const clearWatchdog = () => {
+      if (watchdog !== null) {
+        window.clearInterval(watchdog);
+        watchdog = null;
+      }
+    };
+
+    /** После доезда ждём QUIET мс тишины ввода, затем фиксируем состояние. */
+    const finalizeWhenQuiet = (after: SnapState) => {
+      clearWatchdog();
+      watchdog = window.setInterval(() => {
+        if (performance.now() - lastInput > QUIET_MS) {
+          clearWatchdog();
+          tweenDone = false;
+          window.scrollTo(0, holdTarget); // точная фиксация
+          setSnapState(after);
+        }
+      }, 30);
+    };
+
+    const tweenTo = (targetY: number, onDone: () => void) => {
+      if (tweenRaf) cancelAnimationFrame(tweenRaf);
       const startY = window.scrollY;
       const dist = targetY - startY;
       const start = performance.now();
       const frame = (now: number) => {
-        const t = Math.min(1, (now - start) / duration);
+        const t = Math.min(1, (now - start) / SNAP_DURATION);
         window.scrollTo(0, Math.round(startY + dist * easeInOutCubic(t)));
-        if (t < 1) {
-          rafRef.current = requestAnimationFrame(frame);
-        } else {
-          rafRef.current = null;
+        if (t < 1) tweenRaf = requestAnimationFrame(frame);
+        else {
+          tweenRaf = null;
           onDone();
         }
       };
-      rafRef.current = requestAnimationFrame(frame);
+      tweenRaf = requestAnimationFrame(frame);
     };
 
-    const targetY = () => {
-      const el = productsRef.current;
-      if (!el) return window.innerHeight;
-      return Math.round(el.getBoundingClientRect().top + window.scrollY);
-    };
-
-    const snap = () => {
-      if (stateRef.current !== "intro") return;
+    const snapForward = () => {
+      if (stateRef.current !== "hero" || suppressRef.current) return;
       setSnapState("snapping");
-      tweenTo(targetY(), SNAP_DURATION, () => {
-        // короткая пауза, чтобы поток scroll-событий «успокоился»
-        window.setTimeout(() => setSnapState("docked"), RELEASE_PAUSE);
+      holdTarget = productsTop();
+      tweenDone = false;
+      tweenTo(holdTarget, () => {
+        tweenDone = true;
+        lastInput = performance.now();
+        finalizeWhenQuiet("docked");
       });
     };
 
-    const returnToIntro = () => {
-      if (stateRef.current !== "docked") return;
-      // scroll уже на 0 — просто реверсим анимацию hero и снова придерживаем.
-      setSnapState("intro");
+    const snapBack = () => {
+      if (stateRef.current !== "docked" || suppressRef.current) return;
+      setSnapState("snapping");
+      holdTarget = 0;
+      tweenDone = false;
+      tweenTo(0, () => {
+        tweenDone = true;
+        lastInput = performance.now();
+        finalizeWhenQuiet("hero");
+      });
     };
 
     // ── Слушатели ────────────────────────────────────────────────────────
     const onWheel = (e: WheelEvent) => {
       const st = stateRef.current;
-      if (st === "intro") {
-        e.preventDefault(); // придерживаем «пиксель-в-пиксель» скролл
-        if (e.deltaY > 0) snap(); // первый жест вниз — триггер
+      lastInput = performance.now();
+      if (st === "hero") {
+        e.preventDefault();
+        if (e.deltaY > 0) snapForward();
       } else if (st === "snapping") {
-        e.preventDefault(); // во время доезда ввод гасим
+        e.preventDefault();
+        if (tweenDone) window.scrollTo(0, holdTarget); // гасим остаточную инерцию
+      } else {
+        // docked: вверх на верхней границе → обратный снап; иначе свободно
+        if (e.deltaY < 0 && window.scrollY <= productsTop() + EDGE) {
+          e.preventDefault();
+          snapBack();
+        }
       }
-      // docked — свободно
     };
 
     const onTouchStart = (e: TouchEvent) => {
-      touchStartYRef.current = e.touches[0]?.clientY ?? null;
+      touchStartY = e.touches[0]?.clientY ?? null;
     };
 
     const onTouchMove = (e: TouchEvent) => {
       const st = stateRef.current;
-      if (st === "intro") {
-        e.preventDefault(); // глушим нативный скролл/fling
-        const y = e.touches[0]?.clientY ?? 0;
-        const startY = touchStartYRef.current;
-        // палец пошёл вверх (контент вниз) > порога — стартуем доезд
-        if (startY != null && startY - y > 6) snap();
+      lastInput = performance.now();
+      const y = e.touches[0]?.clientY ?? 0;
+      const sy = touchStartY ?? y;
+      if (st === "hero") {
+        e.preventDefault();
+        if (sy - y > THRESH) snapForward(); // палец вверх = скролл вниз
       } else if (st === "snapping") {
         e.preventDefault();
+        if (tweenDone) window.scrollTo(0, holdTarget);
+      } else {
+        // docked: палец вниз (скролл вверх) на верхней границе → обратный снап
+        if (y - sy > THRESH && window.scrollY <= productsTop() + EDGE) {
+          e.preventDefault();
+          snapBack();
+        }
       }
     };
 
     const onKeyDown = (e: KeyboardEvent) => {
-      if (stateRef.current !== "intro") return;
-      if (
-        e.key === "ArrowDown" ||
-        e.key === "PageDown" ||
-        e.key === " " ||
-        e.key === "Spacebar"
-      ) {
-        e.preventDefault();
-        snap();
+      const st = stateRef.current;
+      if (st === "hero") {
+        if (
+          e.key === "ArrowDown" ||
+          e.key === "PageDown" ||
+          e.key === " " ||
+          e.key === "Spacebar"
+        ) {
+          e.preventDefault();
+          lastInput = performance.now();
+          snapForward();
+        }
+      } else if (st === "docked") {
+        if (
+          (e.key === "ArrowUp" || e.key === "PageUp") &&
+          window.scrollY <= productsTop() + EDGE
+        ) {
+          e.preventDefault();
+          lastInput = performance.now();
+          snapBack();
+        }
       }
     };
 
+    // Придержка верхней границы зоны товаров: в docked не пускаем скролл выше
+    // начала секции (в hero можно только обратным снапом).
     const onScroll = () => {
-      // авто-возврат в intro ТОЛЬКО при реальном доскролле до самого верха
-      if (
-        stateRef.current === "docked" &&
-        !suppressReturnRef.current &&
-        window.scrollY <= 0
-      ) {
-        returnToIntro();
-      }
+      if (stateRef.current !== "docked" || suppressRef.current) return;
+      const top = productsTop();
+      if (window.scrollY < top) window.scrollTo(0, top);
     };
 
     window.addEventListener("wheel", onWheel, { passive: false });
@@ -163,11 +222,12 @@ export function HomeShell({ items }: { items: ProductDto[] }) {
       window.removeEventListener("touchmove", onTouchMove);
       window.removeEventListener("keydown", onKeyDown);
       window.removeEventListener("scroll", onScroll);
-      if (rafRef.current) cancelAnimationFrame(rafRef.current);
+      if (tweenRaf) cancelAnimationFrame(tweenRaf);
+      clearWatchdog();
     };
   }, []);
 
-  const heroDocked = state !== "intro";
+  const heroDocked = state !== "hero";
 
   return (
     <>
