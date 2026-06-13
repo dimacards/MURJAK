@@ -25,6 +25,9 @@ export function ProductGrid({ items }: { items: ProductDto[] }) {
 
   return (
     <>
+      {/* Заголовок — за пределами фрейма */}
+      <h1 className={styles.sectionTitle}>Товары</h1>
+
       {/* Фильтр одежда/модель — во фрейме как у инфо-карточки */}
       <div className={styles.headerCard}>
         <div className={styles.kindToggle} role="group" aria-label="Вид фото">
@@ -38,8 +41,8 @@ export function ProductGrid({ items }: { items: ProductDto[] }) {
             <Image
               src="/brand/icon-item.svg"
               alt=""
-              width={38}
-              height={38}
+              width={24}
+              height={24}
               className={styles.kindIcon}
             />
           </button>
@@ -53,8 +56,8 @@ export function ProductGrid({ items }: { items: ProductDto[] }) {
             <Image
               src="/brand/icon-model.svg"
               alt=""
-              width={38}
-              height={38}
+              width={24}
+              height={24}
               className={styles.kindIcon}
             />
           </button>
