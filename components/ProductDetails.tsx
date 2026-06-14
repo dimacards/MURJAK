@@ -45,8 +45,6 @@ export function ProductDetails({ product }: { product: ProductDto }) {
         <div className={styles.outOfStock}>Нет в наличии</div>
       )}
 
-      {cta}
-
       {product.features.length > 0 && (
         <ul className={styles.features}>
           {product.features.map((f, idx) => (
@@ -56,6 +54,9 @@ export function ProductDetails({ product }: { product: ProductDto }) {
           ))}
         </ul>
       )}
+
+      {/* CTA — под описанием */}
+      {cta}
     </div>
   );
 }

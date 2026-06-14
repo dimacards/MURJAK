@@ -31,9 +31,11 @@ export function Gallery({
   const total = slides.length;
   const [index, setIndex] = useState(0);
   const i = Math.min(index, Math.max(0, total - 1));
+  const rootRef = useRef<HTMLDivElement>(null);
 
-  const goPrev = () => setIndex((v) => (v - 1 + total) % total);
-  const goNext = () => setIndex((v) => (v + 1) % total);
+  // клампим (не зацикливаем) — листаем «доезжая» к краям
+  const goPrev = () => setIndex((v) => Math.max(0, v - 1));
+  const goNext = () => setIndex((v) => Math.min(total - 1, v + 1));
 
   useEffect(() => {
     if (total <= 1) return;
@@ -45,6 +47,29 @@ export function Gallery({
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [total]);
+
+  // Скролл над галереей листает фото со сменой через fade (не лента).
+  // Один жест = один слайд: кулдаун гасит инерционный хвост трекпада.
+  // Только на десктопе (≥768) — на мобилке скроллится страница, листание свайпом.
+  useEffect(() => {
+    const root = rootRef.current;
+    if (!root || total <= 1) return;
+    let last = 0;
+    const COOLDOWN = 600;
+    const onWheel = (e: WheelEvent) => {
+      if (window.innerWidth < 768) return; // мобилка: не перехватываем скролл
+      e.preventDefault();
+      const now = performance.now();
+      if (now - last < COOLDOWN) return;
+      if (Math.abs(e.deltaY) < 5) return;
+      last = now;
+      if (e.deltaY > 0) goNext();
+      else goPrev();
+    };
+    root.addEventListener("wheel", onWheel, { passive: false });
+    return () => root.removeEventListener("wheel", onWheel);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [total]);
 
@@ -73,7 +98,7 @@ export function Gallery({
   const active = slides[i];
 
   return (
-    <div className={styles.root}>
+    <div className={styles.root} ref={rootRef}>
       {total > 1 && (
         <div className={styles.thumbs}>
           {slides.map((s, idx) => (
