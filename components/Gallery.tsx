@@ -51,25 +51,35 @@ export function Gallery({
   }, [total]);
 
   // Скролл над галереей листает фото со сменой через fade (не лента).
-  // Один жест = один слайд: кулдаун гасит инерционный хвост трекпада.
+  // Один жест = один слайд: после флипа ставим замок и снимаем его только
+  // когда поток wheel-событий затих (инерционный хвост трекпада прошёл) —
+  // так даже резкий скролл с длинным импульсом листает ровно одну фотку.
   // Только на десктопе (≥768) — на мобилке скроллится страница, листание свайпом.
   useEffect(() => {
     const root = rootRef.current;
     if (!root || total <= 1) return;
-    let last = 0;
-    const COOLDOWN = 600;
+    let locked = false;
+    let quietTimer: ReturnType<typeof setTimeout> | null = null;
+    const QUIET_MS = 140; // тишина, после которой жест считается завершённым
     const onWheel = (e: WheelEvent) => {
       if (window.innerWidth < 768) return; // мобилка: не перехватываем скролл
       e.preventDefault();
-      const now = performance.now();
-      if (now - last < COOLDOWN) return;
+      // пока идут события — продлеваем «тишину»; замок снимется только в покое
+      if (quietTimer) clearTimeout(quietTimer);
+      quietTimer = setTimeout(() => {
+        locked = false;
+      }, QUIET_MS);
+      if (locked) return;
       if (Math.abs(e.deltaY) < 5) return;
-      last = now;
+      locked = true;
       if (e.deltaY > 0) goNext();
       else goPrev();
     };
     root.addEventListener("wheel", onWheel, { passive: false });
-    return () => root.removeEventListener("wheel", onWheel);
+    return () => {
+      root.removeEventListener("wheel", onWheel);
+      if (quietTimer) clearTimeout(quietTimer);
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [total]);
 
