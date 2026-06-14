@@ -66,11 +66,10 @@ async function fetchProduct(idStr: string): Promise<ProductDto | null> {
 }
 
 /**
- * Страница товара по макету:
- *  - медиа-блок: каруселька слева + видео справа, без отступа между ними,
- *    одинаковой высоты (если видео нет — карусель одна, по центру);
- *  - ниже — инфо-карточка в виде «игральной карты» (чёрная с белой рамкой),
- *    перекрывает медиа-блок снизу.
+ * Страница товара:
+ *  - слева каруселька со ВСЕМИ медиа (фото + видео как слайды);
+ *  - справа (на месте бывшего видео) — статичный блок информации
+ *    («игральная карта»), всегда раскрытый.
  */
 export default async function ProductPage({
   params,
@@ -94,8 +93,6 @@ export default async function ProductPage({
     );
   }
 
-  const hasVideo = !!product.videoUrl;
-
   // Порядок в карусельке: сначала фотографии одежды (ITEM), потом модели.
   const orderedPhotos = [
     ...product.photos.filter((p) => p.kind === "ITEM"),
@@ -103,36 +100,23 @@ export default async function ProductPage({
   ];
 
   return (
-    <>
-      <main className={styles.main}>
-        <Link href="/" className={styles.back}>
-          ← К каталогу
-        </Link>
+    <main className={styles.main}>
+      <Link href="/" className={styles.back}>
+        ← К каталогу
+      </Link>
 
-        <div className={styles.mediaRow}>
-          <div className={styles.galleryCol}>
-            <Gallery
-              photos={orderedPhotos.map((p) => p.url)}
-              title={product.name}
-            />
-          </div>
-          {hasVideo && (
-            <div className={styles.videoCol}>
-              <video
-                className={styles.video}
-                src={product.videoUrl!}
-                autoPlay
-                muted
-                loop
-                playsInline
-                preload="metadata"
-              />
-            </div>
-          )}
+      <div className={styles.layout}>
+        <div className={styles.galleryCol}>
+          <Gallery
+            photos={orderedPhotos.map((p) => p.url)}
+            videoUrl={product.videoUrl}
+            title={product.name}
+          />
         </div>
-
-        <ProductDetails product={product} />
-      </main>
-    </>
+        <div className={styles.detailsCol}>
+          <ProductDetails product={product} />
+        </div>
+      </div>
+    </main>
   );
 }

@@ -4,32 +4,38 @@ import { useEffect, useRef, useState } from "react";
 import Image from "next/image";
 import styles from "./Gallery.module.css";
 
+type Slide =
+  | { type: "image"; src: string }
+  | { type: "video"; src: string };
+
 /**
- * Галерея товара.
+ * Галерея товара: лента всех медиа (фото + видео) со scroll-snap.
+ * Видео — такой же слайд карусели (после фото). Листается колесом/свайпом
+ * ВНУТРИ галереи (overscroll-behavior: contain), страница не двигается.
+ * Активный слайд — по положению скролла (IntersectionObserver).
  *
- * Большое медиа — вертикальная (на мобилке горизонтальная) лента всех фото
- * со scroll-snap: листается колесом/свайпом ВНУТРИ галереи, страница при
- * этом не двигается (overscroll-behavior: contain). Активное фото
- * определяется по положению скролла (IntersectionObserver).
- *
- * Миниатюры — маленькие, колонкой слева поверх ленты, без номеров.
- * В покое полупрозрачные с серым строуком; hover — увеличиваются ПОВЕРХ
- * соседей (transform: scale, не обрезаясь) и становятся ярче; активная —
- * белый строук. Клик — плавная прокрутка к выбранному фото.
+ * Миниатюры слева поверх ленты: у видео — кадр с иконкой play. Клик — плавная
+ * прокрутка к слайду. Hover увеличивает поверх соседей; активная — белый строук.
  */
 export function Gallery({
   photos,
+  videoUrl,
   title,
 }: {
   photos: string[];
+  videoUrl?: string | null;
   title: string;
 }) {
+  const slides: Slide[] = [
+    ...photos.map((src) => ({ type: "image" as const, src })),
+    ...(videoUrl ? [{ type: "video" as const, src: videoUrl }] : []),
+  ];
+  const total = slides.length;
+
   const [index, setIndex] = useState(0);
-  const total = photos.length;
   const trackRef = useRef<HTMLDivElement>(null);
   const slideRefs = useRef<(HTMLDivElement | null)[]>([]);
 
-  // Активный слайд — тот, что максимально в зоне видимости ленты.
   useEffect(() => {
     const root = trackRef.current;
     if (!root || total <= 1) return;
@@ -59,13 +65,13 @@ export function Gallery({
   };
 
   if (total === 0) {
-    return <div className={styles.empty}>Нет фотографий</div>;
+    return <div className={styles.empty}>Нет медиа</div>;
   }
 
   return (
     <div className={styles.root}>
       <div className={styles.track} ref={trackRef}>
-        {photos.map((src, i) => (
+        {slides.map((s, i) => (
           <div
             key={i}
             className={styles.slide}
@@ -74,37 +80,64 @@ export function Gallery({
               slideRefs.current[i] = el;
             }}
           >
-            <Image
-              src={src}
-              alt={`${title} — фото ${i + 1} из ${total}`}
-              fill
-              sizes="(min-width: 768px) 65vw, 100vw"
-              className={styles.slideImage}
-              priority={i === 0}
-            />
+            {s.type === "image" ? (
+              <Image
+                src={s.src}
+                alt={`${title} — ${i + 1} из ${total}`}
+                fill
+                sizes="(min-width: 768px) 65vw, 100vw"
+                className={styles.slideImage}
+                priority={i === 0}
+              />
+            ) : (
+              <video
+                className={styles.slideVideo}
+                src={s.src}
+                autoPlay
+                muted
+                loop
+                playsInline
+                preload="metadata"
+              />
+            )}
           </div>
         ))}
       </div>
 
       {total > 1 && (
         <div className={styles.thumbs}>
-          {photos.map((src, i) => (
+          {slides.map((s, i) => (
             <button
               key={i}
               type="button"
               className={`${styles.thumb} ${i === index ? styles.thumbActive : ""}`}
               onClick={() => scrollTo(i)}
-              aria-label={`Фото ${i + 1}`}
+              aria-label={s.type === "video" ? "Видео" : `Фото ${i + 1}`}
               aria-current={i === index}
             >
-              <Image
-                src={src}
-                alt=""
-                width={40}
-                height={40}
-                sizes="40px"
-                className={styles.thumbImage}
-              />
+              {s.type === "image" ? (
+                <Image
+                  src={s.src}
+                  alt=""
+                  width={40}
+                  height={40}
+                  sizes="40px"
+                  className={styles.thumbImage}
+                />
+              ) : (
+                <span className={styles.thumbVideoWrap}>
+                  <video
+                    className={styles.thumbVideo}
+                    src={s.src}
+                    muted
+                    playsInline
+                    preload="metadata"
+                  />
+                  <span className={styles.thumbPlay} aria-hidden="true">
+                    ▶
+                  </span>
+                </span>
+              )}
             </button>
           ))}
         </div>

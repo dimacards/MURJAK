@@ -1,51 +1,26 @@
-/* ===== Затемнение страницы при раскрытом блоке ===== */
-.backdrop {
-  position: fixed;
-  inset: 0;
-  z-index: 30;
-  background: rgba(0, 0, 0, 0.6);
-  opacity: 0;
-  pointer-events: none;
-  transition: opacity 0.4s ease;
-}
-
-.backdropVisible {
-  opacity: 1;
-  pointer-events: auto;
-}
-
-/* ===== Блок информации (макет: #1a1a1a, радиус 44, тени) ===== */
-/* Свёрнут — закреплён у нижней грани по центру. Раскрытие — transform
-   до центра экрана; transform интерполируется плавно. */
-/* gentle easing 600ms (плавно начинается и плавно тормозит) */
+/* «Игральная карта»: #1a1a1a, скругление 44, тень. Статичная, в потоке
+   правой колонки. Всегда раскрыта (название/цена/особенности/кнопка). */
 .card {
-  position: fixed;
-  bottom: 24px;
-  left: 50%;
-  transform: translate(-50%, 0);
-  z-index: 31;
-  width: min(482px, 92vw);
   display: flex;
   flex-direction: column;
   gap: 16px;
+  width: 100%;
+  max-width: 460px;
+  max-height: 100%;
+  overflow-y: auto;
+  scrollbar-width: none;
   background: #1a1a1a;
   border-radius: 44px;
-  padding: 16px;
+  padding: 24px;
   box-shadow:
     0 0 5px rgba(0, 0, 0, 0.1),
     0 0 20px rgba(0, 0, 0, 0.25);
-  transition:
-    transform 0.6s cubic-bezier(0.4, 0, 0.2, 1),
-    width 0.6s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-/* раскрытая — шире и переезжает в центр экрана */
-.cardOpen {
-  width: min(560px, 92vw);
-  transform: translate(-50%, calc(-50svh + 50% + 24px));
+.card::-webkit-scrollbar {
+  display: none;
 }
 
-/* ===== Текст ===== */
 .title {
   font-family: var(--font-heading);
   font-weight: 600;
@@ -79,8 +54,6 @@
   }
 }
 
-/* зазор после цены/наличия до кнопок — gap карточки 16, но title+price
-   составляют свою группу: компенсируем gap у первой группы */
 .title + .price {
   margin-top: -8px;
 }
@@ -96,34 +69,11 @@
   letter-spacing: 0.01em;
 }
 
-/* ===== Особенности — раскрываются вместе с блоком ===== */
-.featuresWrap {
-  max-height: 0;
-  opacity: 0;
-  overflow: hidden;
-  transition:
-    max-height 0.6s cubic-bezier(0.4, 0, 0.2, 1),
-    opacity 0.4s ease,
-    margin 0.6s cubic-bezier(0.4, 0, 0.2, 1);
-  margin-top: -16px;
-}
-
-.cardOpen .featuresWrap {
-  max-height: min(48svh, 480px);
-  opacity: 1;
-  margin-top: 0;
-  overflow-y: auto;
-  scrollbar-width: none;
-}
-
-.cardOpen .featuresWrap::-webkit-scrollbar {
-  display: none;
-}
-
+/* особенности — всегда показаны, маркеры-точки + дивайдеры (макет) */
 .features {
   list-style: disc;
   margin: 0;
-  padding: 4px 0 4px 24px;
+  padding: 0 0 0 24px;
   width: 100%;
 }
 
@@ -134,7 +84,6 @@
   color: #fff;
   overflow-wrap: anywhere;
   word-break: break-word;
-  /* дивайдер из макета: белая полоска 2px с opacity 0.1 */
   border-bottom: 2px solid rgba(255, 255, 255, 0.1);
 }
 
@@ -142,47 +91,18 @@
   border-bottom: none;
 }
 
-/* ===== Кнопки ===== */
-.actions {
-  display: flex;
+.buyWrap {
+  width: 100%;
+  margin-top: auto;
+}
+
+/* «Написать продавцу» — белая пилюля, чёрный текст и иконка */
+.buyBtn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   gap: 8px;
   width: 100%;
-}
-
-/* «Полное описание» / «Свернуть описание» — тёмная пилюля #292929 */
-.descBtn {
-  flex: 1 1 0;
-  min-width: 0;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  padding: 12px 16px;
-  background: #292929;
-  color: #fff;
-  font-family: var(--font-heading);
-  font-size: 16px;
-  font-weight: 600;
-  line-height: 24px;
-  border-radius: 28px;
-  white-space: nowrap;
-  overflow: hidden;
-  transition: background 0.15s ease;
-}
-
-@media (hover: hover) and (pointer: fine) {
-  .descBtn:hover {
-    background: #333;
-  }
-}
-
-/* «Написать продавцу» — белая пилюля, чёрный текст и иконка (макет) */
-.buyBtn {
-  flex: 1 1 0;
-  min-width: 0;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
   padding: 12px 20px;
   background: #fff;
   color: #000;

@@ -38,9 +38,18 @@
   scroll-snap-stop: always;
 }
 
-/* contain — фото показывается в своём формате, не подгоняется под квадрат */
+/* contain — фото/видео показываются в своём формате, не режутся под квадрат */
 .slideImage {
   object-fit: contain;
+}
+
+.slideVideo {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  background: #000;
 }
 
 @media (max-width: 767px) {
@@ -136,12 +145,45 @@
   }
 }
 
+/* === Миниатюра-видео: кадр + иконка play === */
+.thumbVideoWrap {
+  position: relative;
+  display: block;
+  width: 100%;
+  height: 100%;
+  border-radius: 4px;
+  overflow: hidden;
+  border: 1px solid var(--color-border);
+  transition: border-color 0.2s ease;
+}
+
+.thumbVideo {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+  background: #000;
+}
+
+.thumbPlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  color: #fff;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.8);
+  pointer-events: none;
+}
+
 .thumbActive {
   opacity: 1;
 }
 
 /* выбранная — белый строук */
-.thumbActive .thumbImage {
+.thumbActive .thumbImage,
+.thumbActive .thumbVideoWrap {
   border-color: #fff;
 }
 

@@ -1,24 +1,16 @@
-"use client";
-
-import { useState } from "react";
 import config from "@/lib/config";
 import type { ProductDto } from "@/lib/api-types";
 import { TelegramIcon } from "./TelegramIcon";
 import styles from "./ProductDetails.module.css";
 
 /**
- * Раскрывающийся блок информации (макет Figma):
+ * Блок информации о товаре — статичная «игральная карта» (#1a1a1a, рамка-скругление,
+ * тень). Всегда в раскрытом виде: название, цена, список особенностей, кнопка
+ * «Написать продавцу». Сворачивания/двух стейтов больше нет.
  *
- * Свёрнут — закреплён снизу по центру: название, цена и две кнопки
- * («Полное описание» + «Написать продавцу»).
- *
- * По клику на «Полное описание» блок плавно перемещается в центр экрана,
- * остальная страница затемняется, раскрывается список особенностей.
- * Закрытие — кнопка «Свернуть описание» или клик по затемнению.
+ * Располагается справа (на месте бывшего видео — оно теперь в карусели слева).
  */
 export function ProductDetails({ product }: { product: ProductDto }) {
-  const [open, setOpen] = useState(false);
-
   const message =
     `Здравствуйте! Интересует товар №${product.id} ` +
     `«${product.name}» (${product.price} ${config.currency})`;
@@ -30,62 +22,37 @@ export function ProductDetails({ product }: { product: ProductDto }) {
       <span>Написать продавцу</span>
     </a>
   ) : (
-    <span className={`${styles.buyBtn} ${styles.buyBtnDisabled}`} aria-disabled="true">
+    <span
+      className={`${styles.buyBtn} ${styles.buyBtnDisabled}`}
+      aria-disabled="true"
+    >
       <TelegramIcon size={18} />
       <span>Нет в наличии</span>
     </span>
   );
 
-  const hasFeatures = product.features.length > 0;
-
   return (
-    <>
-      {/* затемнение всего остального; клик по нему закрывает */}
-      <div
-        className={`${styles.backdrop} ${open ? styles.backdropVisible : ""}`}
-        onClick={() => setOpen(false)}
-        aria-hidden="true"
-      />
+    <section className={styles.card} aria-label="Информация о товаре">
+      <h1 className={styles.title}>{product.name}</h1>
+      <div className={styles.price}>
+        {product.price} {config.currency}
+      </div>
 
-      <section
-        className={`${styles.card} ${open ? styles.cardOpen : ""}`}
-        aria-label="Информация о товаре"
-      >
-        <h1 className={styles.title}>{product.name}</h1>
-        <div className={styles.price}>
-          {product.price} {config.currency}
-        </div>
+      {!product.inStock && (
+        <div className={styles.outOfStock}>Нет в наличии</div>
+      )}
 
-        {!product.inStock && (
-          <div className={styles.outOfStock}>Нет в наличии</div>
-        )}
+      {product.features.length > 0 && (
+        <ul className={styles.features}>
+          {product.features.map((f, i) => (
+            <li key={i} className={styles.featureItem}>
+              {f}
+            </li>
+          ))}
+        </ul>
+      )}
 
-        {/* особенности — раскрываются вместе с блоком */}
-        {hasFeatures && (
-          <div className={styles.featuresWrap}>
-            <ul className={styles.features}>
-              {product.features.map((f, i) => (
-                <li key={i} className={styles.featureItem}>
-                  {f}
-                </li>
-              ))}
-            </ul>
-          </div>
-        )}
-
-        <div className={styles.actions}>
-          {hasFeatures && (
-            <button
-              type="button"
-              className={styles.descBtn}
-              onClick={() => setOpen((v) => !v)}
-            >
-              {open ? "Свернуть описание" : "Полное описание"}
-            </button>
-          )}
-          {buyButton}
-        </div>
-      </section>
-    </>
+      <div className={styles.buyWrap}>{buyButton}</div>
+    </section>
   );
 }
