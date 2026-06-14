@@ -125,6 +125,27 @@
   pointer-events: none;
 }
 
+/* На мобилке CTA прибита к нижней границе экрана — бар во всю ширину */
+@media (max-width: 767px) {
+  .info {
+    /* воздух снизу, чтобы последний пункт не уходил под фиксированный бар */
+    padding-bottom: 88px;
+  }
+
+  .cta {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 30;
+    width: auto;
+    border-radius: 0;
+    /* учитываем «чёлку»/home-indicator на iPhone */
+    padding: 16px 20px calc(16px + env(safe-area-inset-bottom, 0px));
+    box-shadow: 0 -10px 28px rgba(0, 0, 0, 0.55);
+  }
+}
+
 /* Описание/особенности — третичный уровень, тонкие дивайдеры */
 .features {
   list-style: none;

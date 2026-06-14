@@ -33,9 +33,13 @@
   .thumbs {
     flex-direction: row;
     width: 100%;
+    /* горизонтальный скролл от левого края — без обрезки крайних миниатюр;
+       по краям небольшой воздух, чтобы первая/последняя не липли к границе */
+    justify-content: flex-start;
     overflow-x: auto;
     overflow-y: hidden;
-    justify-content: center;
+    padding: 2px;
+    scroll-snap-type: x proximity;
   }
 }
 
@@ -44,6 +48,7 @@
   flex: 0 0 auto;
   width: 72px;
   aspect-ratio: 3 / 4;
+  scroll-snap-align: start;
   padding: 0;
   overflow: hidden;
   border-radius: 4px;
@@ -101,6 +106,11 @@
   .main {
     flex: none;
     aspect-ratio: 3 / 4;
+  }
+
+  /* компактнее на мобилке — больше миниатюр влезает без скролла */
+  .thumb {
+    width: 56px;
   }
 }
 
