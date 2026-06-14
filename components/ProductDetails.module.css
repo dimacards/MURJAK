@@ -1,33 +1,33 @@
-/* «Игральная карта»: #1a1a1a, скругление 44, тень. Статичная, в потоке
-   правой колонки. Всегда раскрыта (название/цена/особенности/кнопка). */
+/* Блок информации — компактная карточка #1a1a1a, скругление 16, тень.
+   Иерархия: название крупно/жирно → цена меньше → особенности мелко → кнопка.
+   Стоит справа сверху (позиционирование — в .detailsCol на странице). */
 .card {
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 14px;
   width: 100%;
-  max-width: 460px;
   max-height: 100%;
   overflow-y: auto;
   scrollbar-width: none;
   background: #1a1a1a;
-  border-radius: 44px;
-  padding: 24px;
+  border-radius: 16px;
+  padding: 20px;
   box-shadow:
     0 0 5px rgba(0, 0, 0, 0.1),
-    0 0 20px rgba(0, 0, 0, 0.25);
+    0 0 24px rgba(0, 0, 0, 0.3);
 }
 
 .card::-webkit-scrollbar {
   display: none;
 }
 
+/* Название — главный акцент: крупное, жирное */
 .title {
   font-family: var(--font-heading);
-  font-weight: 600;
-  font-size: 20px;
-  line-height: 1.4;
-  letter-spacing: -0.28px;
-  text-align: center;
+  font-weight: 700;
+  font-size: 24px;
+  line-height: 1.2;
+  letter-spacing: -0.02em;
   color: #fff;
   overflow-wrap: anywhere;
   word-break: break-word;
@@ -35,23 +35,17 @@
 
 @media (min-width: 768px) {
   .title {
-    font-size: 24px;
+    font-size: 28px;
   }
 }
 
+/* Цена — вторична: меньше названия, средний вес, приглушённее */
 .price {
   font-family: var(--font-heading);
   font-weight: 500;
   font-size: 16px;
-  line-height: 1.4;
-  text-align: center;
-  color: #fff;
-}
-
-@media (min-width: 768px) {
-  .price {
-    font-size: 20px;
-  }
+  line-height: 1.2;
+  color: rgba(255, 255, 255, 0.7);
 }
 
 .title + .price {
@@ -59,44 +53,44 @@
 }
 
 .outOfStock {
-  align-self: center;
+  align-self: flex-start;
   padding: 4px 10px;
   background: rgba(255, 255, 255, 0.1);
   color: #fff;
   font-size: 12px;
   font-weight: 500;
-  border-radius: 4px;
+  border-radius: 6px;
   letter-spacing: 0.01em;
 }
 
-/* особенности — всегда показаны, маркеры-точки + дивайдеры (макет) */
+/* Особенности — мелкий третичный уровень, тонкие дивайдеры */
 .features {
-  list-style: disc;
+  list-style: none;
   margin: 0;
-  padding: 0 0 0 24px;
+  padding: 0;
   width: 100%;
 }
 
 .featureItem {
-  padding: 4px 0;
-  font-size: 16px;
-  line-height: 1.4;
-  color: #fff;
+  padding: 8px 0;
+  font-size: 14px;
+  line-height: 1.45;
+  color: rgba(255, 255, 255, 0.82);
   overflow-wrap: anywhere;
   word-break: break-word;
-  border-bottom: 2px solid rgba(255, 255, 255, 0.1);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
 }
 
-.featureItem:last-child {
-  border-bottom: none;
+.featureItem:first-child {
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
 }
 
+/* Кнопка — белая пилюля, чёрный текст и иконка */
 .buyWrap {
   width: 100%;
-  margin-top: auto;
+  margin-top: 2px;
 }
 
-/* «Написать продавцу» — белая пилюля, чёрный текст и иконка */
 .buyBtn {
   display: inline-flex;
   align-items: center;
@@ -107,10 +101,10 @@
   background: #fff;
   color: #000;
   font-family: var(--font-heading);
-  font-size: 16px;
+  font-size: 15px;
   font-weight: 600;
-  line-height: 24px;
-  border-radius: 28px;
+  line-height: 22px;
+  border-radius: 12px;
   white-space: nowrap;
   transition: background 0.15s ease;
   user-select: none;
