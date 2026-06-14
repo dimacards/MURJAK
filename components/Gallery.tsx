@@ -51,34 +51,51 @@ export function Gallery({
   }, [total]);
 
   // Скролл над галереей листает фото со сменой через fade (не лента).
-  // Один жест = один слайд: после флипа ставим замок и снимаем его только
-  // когда поток wheel-событий затих (инерционный хвост трекпада прошёл) —
-  // так даже резкий скролл с длинным импульсом листает ровно одну фотку.
+  // Компромисс между «нельзя пролистать без движения курсора» и инерцией:
+  //  - на активном толчке листаем сразу и ставим короткий замок ПО ТАЙМЕРУ
+  //    (release по времени, а не по остановке событий → курсор двигать не нужно);
+  //  - инерционный хвост после замка отсекаем по динамике: сравниваем среднюю
+  //    скорость последних событий со средней более ранних — если затухаем
+  //    (end < middle), это инерция, не листаем; на новом активном толчке
+  //    среднее снова растёт и флип срабатывает мгновенно;
+  //  - пауза >200мс между событиями = новый жест, чистим историю.
   // Только на десктопе (≥768) — на мобилке скроллится страница, листание свайпом.
   useEffect(() => {
     const root = rootRef.current;
     if (!root || total <= 1) return;
-    let locked = false;
-    let quietTimer: ReturnType<typeof setTimeout> | null = null;
-    const QUIET_MS = 140; // тишина, после которой жест считается завершённым
+    let speeds: number[] = [];
+    let prevTime = 0;
+    let canFire = true;
+    let unlockTimer: ReturnType<typeof setTimeout> | null = null;
+    const LOCK_MS = 420; // ~длительность анимации смены слайда
+    const avg = (n: number) => {
+      const part = speeds.slice(-n);
+      return part.length ? part.reduce((a, b) => a + b, 0) / part.length : 0;
+    };
     const onWheel = (e: WheelEvent) => {
       if (window.innerWidth < 768) return; // мобилка: не перехватываем скролл
       e.preventDefault();
-      // пока идут события — продлеваем «тишину»; замок снимется только в покое
-      if (quietTimer) clearTimeout(quietTimer);
-      quietTimer = setTimeout(() => {
-        locked = false;
-      }, QUIET_MS);
-      if (locked) return;
-      if (Math.abs(e.deltaY) < 5) return;
-      locked = true;
+      const now = performance.now();
+      const v = Math.abs(e.deltaY);
+      if (now - prevTime > 200) speeds = []; // новый жест после паузы
+      prevTime = now;
+      if (speeds.length > 80) speeds.shift();
+      speeds.push(v);
+      if (!canFire || v < 2) return;
+      // ускоряемся (активный толчок) или затухаем (инерция)?
+      if (avg(8) < avg(30)) return; // затухание — это инерция, пропускаем
+      canFire = false;
+      if (unlockTimer) clearTimeout(unlockTimer);
+      unlockTimer = setTimeout(() => {
+        canFire = true;
+      }, LOCK_MS);
       if (e.deltaY > 0) goNext();
       else goPrev();
     };
     root.addEventListener("wheel", onWheel, { passive: false });
     return () => {
       root.removeEventListener("wheel", onWheel);
-      if (quietTimer) clearTimeout(quietTimer);
+      if (unlockTimer) clearTimeout(unlockTimer);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [total]);
