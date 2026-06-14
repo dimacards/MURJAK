@@ -1,168 +1,77 @@
+/* Лента миниатюр слева + крупное основное медиа (стиль LIME) */
 .root {
-  position: relative;
+  display: flex;
+  gap: var(--space-md);
   width: 100%;
   height: 100%;
   min-width: 0;
-  background: #0a0a0a;
-  /* visible — увеличенная при hover миниатюра НЕ обрезается фреймом
-     (внутренний клип делает .track) */
-  overflow: visible;
-}
-
-/* === Лента фото со scroll-snap === */
-/* Десктоп — вертикальная (скролл сверху вниз), мобилка — горизонтальная.
-   overscroll-behavior: contain — скролл не «протекает» на страницу. */
-.track {
-  width: 100%;
-  height: 100%;
-  display: flex;
-  flex-direction: column;
-  overflow-y: auto;
-  overflow-x: hidden;
-  scroll-snap-type: y mandatory;
-  overscroll-behavior: contain;
-  scrollbar-width: none;
-  -webkit-overflow-scrolling: touch;
-}
-
-.track::-webkit-scrollbar {
-  display: none;
-}
-
-.slide {
-  position: relative;
-  flex: 0 0 100%;
-  width: 100%;
-  height: 100%;
-  scroll-snap-align: start;
-  scroll-snap-stop: always;
-}
-
-/* contain — фото/видео показываются в своём формате, не режутся под квадрат */
-.slideImage {
-  object-fit: contain;
-}
-
-.slideVideo {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  object-fit: contain;
-  background: #000;
 }
 
 @media (max-width: 767px) {
-  .track {
-    flex-direction: row;
-    overflow-x: auto;
-    overflow-y: hidden;
-    scroll-snap-type: x mandatory;
+  .root {
+    flex-direction: column-reverse; /* миниатюры под основным медиа */
+    gap: var(--space-sm);
   }
 }
 
-/* === Миниатюры: колонка слева поверх ленты === */
+/* === Лента миниатюр === */
 .thumbs {
-  position: absolute;
-  left: var(--space-md);
-  top: 50%;
-  transform: translateY(-50%);
-  z-index: 2;
   display: flex;
   flex-direction: column;
-  align-items: flex-start;
   gap: var(--space-sm);
-  /* без overflow: увеличенная миниатюра не обрезается. Кол-во фото ≤10,
-     36px+зазоры умещаются по высоте кадра. */
-  transition: gap 0.2s ease;
+  width: 72px;
+  flex-shrink: 0;
+  overflow-y: auto;
+  scrollbar-width: none;
 }
 
-/* при наведении на любую миниатюру — остальные раздвигаются, расстояние
-   между всеми остаётся одинаковым */
-.thumbs:has(.thumb:hover) {
-  gap: 16px;
+.thumbs::-webkit-scrollbar {
+  display: none;
 }
 
 @media (max-width: 767px) {
   .thumbs {
-    /* на мобилке — горизонтальный ряд снизу по центру */
-    left: 50%;
-    top: auto;
-    bottom: var(--space-md);
-    transform: translateX(-50%);
     flex-direction: row;
-    align-items: flex-end;
-    max-width: calc(100% - var(--space-lg));
+    width: 100%;
     overflow-x: auto;
-    overflow-y: visible;
-    scrollbar-width: none;
-  }
-  .thumbs::-webkit-scrollbar {
-    display: none;
+    overflow-y: hidden;
+    justify-content: center;
   }
 }
 
 .thumb {
+  position: relative;
   flex: 0 0 auto;
-  width: 36px;
-  height: 36px;
+  width: 72px;
+  aspect-ratio: 3 / 4;
   padding: 0;
+  overflow: hidden;
   border-radius: 4px;
-  /* растёт вправо/вверх/вниз от левой грани (origin left center),
-     левый край закреплён */
-  transform-origin: left center;
-  /* в покое — полупрозрачные */
-  opacity: 0.55;
+  background: #0a0a0a;
+  /* серый строук в стиле сайта; неактивные приглушены */
+  border: 1px solid var(--color-border);
+  opacity: 0.5;
   transition:
     opacity 0.2s ease,
-    transform 0.2s ease;
+    border-color 0.2s ease;
 }
 
-@media (max-width: 767px) {
-  .thumb {
-    /* на мобилке растут вверх от нижней грани */
-    transform-origin: center bottom;
-  }
-}
-
-.thumbImage {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  display: block;
-  border-radius: 4px;
-  /* серый строук в стиле сайта */
-  border: 1px solid var(--color-border);
-  transition: border-color 0.2s ease;
-}
-
-/* hover — увеличивается ПОВЕРХ соседей (scale, не обрезаясь), ярче */
 @media (hover: hover) and (pointer: fine) {
   .thumb:hover {
-    opacity: 1;
-    transform: scale(1.6);
-    z-index: 3;
+    opacity: 0.85;
   }
 }
 
-/* === Миниатюра-видео: кадр + иконка play === */
-.thumbVideoWrap {
-  position: relative;
-  display: block;
-  width: 100%;
-  height: 100%;
-  border-radius: 4px;
-  overflow: hidden;
-  border: 1px solid var(--color-border);
-  transition: border-color 0.2s ease;
+.thumbActive {
+  opacity: 1;
+  border-color: #fff;
 }
 
-.thumbVideo {
+.thumbMedia {
   width: 100%;
   height: 100%;
   object-fit: cover;
   display: block;
-  background: #000;
 }
 
 .thumbPlay {
@@ -171,20 +80,45 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 11px;
+  font-size: 12px;
   color: #fff;
   text-shadow: 0 1px 3px rgba(0, 0, 0, 0.8);
   pointer-events: none;
 }
 
-.thumbActive {
-  opacity: 1;
+/* === Основное медиа === */
+.main {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+  height: 100%;
+  background: #0a0a0a;
+  overflow: hidden;
+  touch-action: pan-y;
 }
 
-/* выбранная — белый строук */
-.thumbActive .thumbImage,
-.thumbActive .thumbVideoWrap {
-  border-color: #fff;
+@media (max-width: 767px) {
+  .main {
+    flex: none;
+    aspect-ratio: 3 / 4;
+  }
+}
+
+.mainMedia {
+  width: 100%;
+  height: 100%;
+  object-fit: contain; /* фото/видео в своём формате */
+  /* мягкое появление при смене слайда */
+  animation: fade 0.3s ease;
+}
+
+@keyframes fade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
 }
 
 .empty {

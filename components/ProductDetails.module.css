@@ -1,33 +1,35 @@
-/* Блок информации — компактная карточка #1a1a1a, скругление 16, тень.
-   Иерархия: название крупно/жирно → цена меньше → особенности мелко → кнопка.
-   Стоит справа сверху (позиционирование — в .detailsCol на странице). */
-.card {
+/* Инфо-панель (стиль LIME, тёмный UI): без бокса, по левому краю. */
+.info {
   display: flex;
   flex-direction: column;
-  gap: 14px;
+  gap: 20px;
   width: 100%;
+  max-width: 520px;
   max-height: 100%;
   overflow-y: auto;
   scrollbar-width: none;
-  background: #1a1a1a;
-  border-radius: 16px;
-  padding: 20px;
-  box-shadow:
-    0 0 5px rgba(0, 0, 0, 0.1),
-    0 0 24px rgba(0, 0, 0, 0.3);
 }
 
-.card::-webkit-scrollbar {
+.info::-webkit-scrollbar {
   display: none;
 }
 
-/* Название — главный акцент: крупное, жирное */
+/* Заголовок + «поделиться» в строку */
+.head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+/* Название — главный акцент: капсом, крупное, жирное */
 .title {
   font-family: var(--font-heading);
   font-weight: 700;
   font-size: 24px;
-  line-height: 1.2;
-  letter-spacing: -0.02em;
+  line-height: 1.15;
+  letter-spacing: 0.01em;
+  text-transform: uppercase;
   color: #fff;
   overflow-wrap: anywhere;
   word-break: break-word;
@@ -35,21 +37,46 @@
 
 @media (min-width: 768px) {
   .title {
-    font-size: 28px;
+    font-size: 30px;
   }
 }
 
-/* Цена — вторична: меньше названия, средний вес, приглушённее */
+.share {
+  flex-shrink: 0;
+  width: 40px;
+  height: 40px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-full);
+  transition:
+    background 0.15s ease,
+    border-color 0.15s ease;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .share:hover {
+    background: rgba(255, 255, 255, 0.08);
+    border-color: rgba(255, 255, 255, 0.4);
+  }
+}
+
+/* Цена — вторична, меньше названия */
 .price {
   font-family: var(--font-heading);
   font-weight: 500;
-  font-size: 16px;
+  font-size: 18px;
   line-height: 1.2;
-  color: rgba(255, 255, 255, 0.7);
+  color: #fff;
+  margin-top: -8px;
 }
 
-.title + .price {
-  margin-top: -8px;
+@media (min-width: 768px) {
+  .price {
+    font-size: 20px;
+  }
 }
 
 .outOfStock {
@@ -63,16 +90,51 @@
   letter-spacing: 0.01em;
 }
 
-/* Особенности — мелкий третичный уровень, тонкие дивайдеры */
+/* Крупная CTA на всю ширину — белая (контраст на чёрном фоне) */
+.cta {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  padding: 16px 20px;
+  background: #fff;
+  color: #000;
+  font-family: var(--font-heading);
+  font-size: 15px;
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  border-radius: 8px;
+  white-space: nowrap;
+  transition: background 0.15s ease;
+  user-select: none;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .cta:hover {
+    background: #e6e6e6;
+  }
+}
+
+.ctaDisabled {
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--color-muted);
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
+/* Описание/особенности — третичный уровень, тонкие дивайдеры */
 .features {
   list-style: none;
-  margin: 0;
+  margin: 4px 0 0;
   padding: 0;
   width: 100%;
 }
 
 .featureItem {
-  padding: 8px 0;
+  padding: 12px 0;
   font-size: 14px;
   line-height: 1.45;
   color: rgba(255, 255, 255, 0.82);
@@ -83,42 +145,4 @@
 
 .featureItem:first-child {
   border-top: 1px solid rgba(255, 255, 255, 0.08);
-}
-
-/* Кнопка — белая пилюля, чёрный текст и иконка */
-.buyWrap {
-  width: 100%;
-  margin-top: 2px;
-}
-
-.buyBtn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  width: 100%;
-  padding: 12px 20px;
-  background: #fff;
-  color: #000;
-  font-family: var(--font-heading);
-  font-size: 15px;
-  font-weight: 600;
-  line-height: 22px;
-  border-radius: 12px;
-  white-space: nowrap;
-  transition: background 0.15s ease;
-  user-select: none;
-}
-
-@media (hover: hover) and (pointer: fine) {
-  .buyBtn:hover {
-    background: #e8e8e8;
-  }
-}
-
-.buyBtnDisabled {
-  background: rgba(255, 255, 255, 0.08);
-  color: var(--color-muted);
-  cursor: not-allowed;
-  pointer-events: none;
 }

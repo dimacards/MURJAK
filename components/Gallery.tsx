@@ -9,13 +9,11 @@ type Slide =
   | { type: "video"; src: string };
 
 /**
- * Галерея товара: лента всех медиа (фото + видео) со scroll-snap.
- * Видео — такой же слайд карусели (после фото). Листается колесом/свайпом
- * ВНУТРИ галереи (overscroll-behavior: contain), страница не двигается.
- * Активный слайд — по положению скролла (IntersectionObserver).
- *
- * Миниатюры слева поверх ленты: у видео — кадр с иконкой play. Клик — плавная
- * прокрутка к слайду. Hover увеличивает поверх соседей; активная — белый строук.
+ * Галерея товара в стиле LIME, адаптированная под наш UI:
+ *  - вертикальная лента миниатюр слева (фото + видео);
+ *  - крупное основное медиа в центре;
+ *  - переключение кликом по миниатюре (+ стрелки ←/→, свайп на тач).
+ * На мобилке миниатюры — горизонтальный ряд под основным медиа.
  */
 export function Gallery({
   photos,
@@ -31,103 +29,75 @@ export function Gallery({
     ...(videoUrl ? [{ type: "video" as const, src: videoUrl }] : []),
   ];
   const total = slides.length;
-
   const [index, setIndex] = useState(0);
-  const trackRef = useRef<HTMLDivElement>(null);
-  const slideRefs = useRef<(HTMLDivElement | null)[]>([]);
+  const i = Math.min(index, Math.max(0, total - 1));
+
+  const goPrev = () => setIndex((v) => (v - 1 + total) % total);
+  const goNext = () => setIndex((v) => (v + 1) % total);
 
   useEffect(() => {
-    const root = trackRef.current;
-    if (!root || total <= 1) return;
-    const io = new IntersectionObserver(
-      (entries) => {
-        let best: { i: number; ratio: number } | null = null;
-        for (const e of entries) {
-          const i = Number((e.target as HTMLElement).dataset.i);
-          if (!best || e.intersectionRatio > best.ratio) {
-            best = { i, ratio: e.intersectionRatio };
-          }
-        }
-        if (best && best.ratio > 0.5) setIndex(best.i);
-      },
-      { root, threshold: [0.5, 0.75, 1] },
-    );
-    slideRefs.current.forEach((el) => el && io.observe(el));
-    return () => io.disconnect();
+    if (total <= 1) return;
+    const onKey = (e: KeyboardEvent) => {
+      const t = e.target as HTMLElement | null;
+      if (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA")) return;
+      if (e.key === "ArrowLeft") goPrev();
+      if (e.key === "ArrowRight") goNext();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [total]);
 
-  const scrollTo = (i: number) => {
-    slideRefs.current[i]?.scrollIntoView({
-      behavior: "smooth",
-      block: "nearest",
-      inline: "nearest",
-    });
+  // свайп по основному медиа (мобилка)
+  const touchRef = useRef<{ x: number; y: number } | null>(null);
+  const onTouchStart = (e: React.TouchEvent) => {
+    const t = e.touches[0];
+    touchRef.current = { x: t.clientX, y: t.clientY };
+  };
+  const onTouchEnd = (e: React.TouchEvent) => {
+    const s = touchRef.current;
+    if (!s) return;
+    touchRef.current = null;
+    const t = e.changedTouches[0];
+    const dx = t.clientX - s.x;
+    const dy = t.clientY - s.y;
+    if (Math.abs(dx) < 40 || Math.abs(dx) < Math.abs(dy)) return;
+    if (dx > 0) goPrev();
+    else goNext();
   };
 
   if (total === 0) {
     return <div className={styles.empty}>Нет медиа</div>;
   }
 
+  const active = slides[i];
+
   return (
     <div className={styles.root}>
-      <div className={styles.track} ref={trackRef}>
-        {slides.map((s, i) => (
-          <div
-            key={i}
-            className={styles.slide}
-            data-i={i}
-            ref={(el) => {
-              slideRefs.current[i] = el;
-            }}
-          >
-            {s.type === "image" ? (
-              <Image
-                src={s.src}
-                alt={`${title} — ${i + 1} из ${total}`}
-                fill
-                sizes="(min-width: 768px) 65vw, 100vw"
-                className={styles.slideImage}
-                priority={i === 0}
-              />
-            ) : (
-              <video
-                className={styles.slideVideo}
-                src={s.src}
-                autoPlay
-                muted
-                loop
-                playsInline
-                preload="metadata"
-              />
-            )}
-          </div>
-        ))}
-      </div>
-
       {total > 1 && (
         <div className={styles.thumbs}>
-          {slides.map((s, i) => (
+          {slides.map((s, idx) => (
             <button
-              key={i}
+              key={idx}
               type="button"
-              className={`${styles.thumb} ${i === index ? styles.thumbActive : ""}`}
-              onClick={() => scrollTo(i)}
-              aria-label={s.type === "video" ? "Видео" : `Фото ${i + 1}`}
-              aria-current={i === index}
+              className={`${styles.thumb} ${idx === i ? styles.thumbActive : ""}`}
+              onClick={() => setIndex(idx)}
+              aria-label={s.type === "video" ? "Видео" : `Фото ${idx + 1}`}
+              aria-current={idx === i}
             >
               {s.type === "image" ? (
                 <Image
                   src={s.src}
                   alt=""
-                  width={40}
-                  height={40}
-                  sizes="40px"
-                  className={styles.thumbImage}
+                  width={72}
+                  height={96}
+                  sizes="72px"
+                  className={styles.thumbMedia}
                 />
               ) : (
-                <span className={styles.thumbVideoWrap}>
+                <>
                   <video
-                    className={styles.thumbVideo}
+                    className={styles.thumbMedia}
                     src={s.src}
                     muted
                     playsInline
@@ -136,12 +106,41 @@ export function Gallery({
                   <span className={styles.thumbPlay} aria-hidden="true">
                     ▶
                   </span>
-                </span>
+                </>
               )}
             </button>
           ))}
         </div>
       )}
+
+      <div
+        className={styles.main}
+        onTouchStart={onTouchStart}
+        onTouchEnd={onTouchEnd}
+      >
+        {active.type === "image" ? (
+          <Image
+            key={`img-${i}`}
+            src={active.src}
+            alt={`${title} — ${i + 1} из ${total}`}
+            fill
+            sizes="(min-width: 768px) 60vw, 100vw"
+            className={styles.mainMedia}
+            priority
+          />
+        ) : (
+          <video
+            key={`vid-${i}`}
+            className={styles.mainMedia}
+            src={active.src}
+            autoPlay
+            muted
+            loop
+            playsInline
+            preload="metadata"
+          />
+        )}
+      </div>
     </div>
   );
 }

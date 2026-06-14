@@ -30,23 +30,28 @@
   }
 }
 
-/* ===== Раскладка ===== */
-/* Десктоп: карусель (слева, fill) + блок информации (справа, на месте видео). */
+/* ===== Раскладка (стиль LIME) =====
+   Десктоп: [лента миниатюр + основное медиа (Gallery)] | [инфо-панель справа].
+   Внутренние поля layout создают воздух по краям; back-link сверху над ними. */
 .layout {
   display: flex;
   flex-direction: column;
-  gap: 0;
+  gap: var(--space-lg);
   min-width: 0;
+  padding: var(--space-md);
 }
 
 @media (min-width: 768px) {
   .layout {
     flex-direction: row;
+    gap: 40px;
     height: 100%;
+    /* сверху больше — под back-link; по краям воздух как у LIME */
+    padding: 72px 40px 40px;
   }
 }
 
-/* Карусель слева — заполняет оставшуюся ширину */
+/* Левая зона (Gallery: миниатюры + крупное медиа) */
 .galleryCol {
   position: relative;
   width: 100%;
@@ -54,7 +59,8 @@
 
 @media (max-width: 767px) {
   .galleryCol {
-    aspect-ratio: 1 / 1;
+    /* высоту задаёт сам Gallery (основное медиа 3:4 + ряд миниатюр) */
+    width: 100%;
   }
 }
 
@@ -66,23 +72,18 @@
   }
 }
 
-/* Блок информации справа СВЕРХУ — не перекрывает медиа, равные отступы
-   вокруг (сверху / справа / зазор до медиа = одно значение). */
+/* Инфо-панель справа, сверху (как у LIME) */
 .detailsCol {
   display: flex;
   align-items: flex-start;
-  justify-content: stretch;
-  padding: var(--space-md);
+  justify-content: flex-start;
 }
 
 @media (min-width: 768px) {
   .detailsCol {
-    width: clamp(380px, 32vw, 460px);
+    width: clamp(400px, 34vw, 560px);
     height: 100%;
     flex-shrink: 0;
-    /* равные отступы: 24px сверху, справа и слева (зазор до карусели) */
-    padding: 24px;
-    align-items: flex-start;
   }
 }
 
