@@ -1,10 +1,10 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import Image from "next/image";
-import config from "@/lib/config";
 import type { ProductDto } from "@/lib/api-types";
+import config from "@/lib/config";
 import { Footer } from "./Footer";
+import { LogoSvg } from "./LogoSvg";
 import { ProductGrid } from "./ProductGrid";
 import styles from "@/app/page.module.css";
 
@@ -12,30 +12,31 @@ import styles from "@/app/page.module.css";
  * Снап-механика первого экрана + переезд логотипа.
  *
  * FSM (управляет ПОЛОЖЕНИЕМ скролла):
- *   hero     — первый экран (видео) на весь вьюпорт, scrollY придержан на 0.
+ *   hero     — видео на весь вьюпорт, scrollY придержан на 0.
  *              Жест ВНИЗ — снап вперёд к брендовому блоку.
  *   snapping — управляемый rAF-доезд (easeInOutCubic) до цели; ввод гасится.
- *   docked   — зона контента (бренд-блок → товары). Свободный скролл, но
- *              верхняя граница придержана: жест ВВЕРХ на ней — обратный снап.
+ *   docked   — зона контента (бренд-блок → товары). Свободный скролл, верхняя
+ *              граница придержана: жест ВВЕРХ на ней — обратный снап.
  *
- * Логотип (отдельный fixed-оверлей) — чистая функция от scrollY, НЕ зависит
- * от FSM. В hero (scrollY 0) — огромный по центру; к бренд-блоку (scrollY=H)
- * уменьшается до 32px и встаёт над описанием; дальше (scrollY>H) уезжает
- * вверх вместе с контентом. Так нет конфликта CSS-перехода со скроллом.
+ * Логотип — ДВА экземпляра, переключаются на границе (где их позиции
+ * совпадают пиксель-в-пиксель):
+ *   • logoFixed (overlay, position:fixed) — виден в hero/snapping. Анимация
+ *     переезда/масштаба — CSS-transition 0.6s cubic-bezier(.4,0,.2,1), как у
+ *     блока информации в карточке (а не привязка к scrollY → нет джиттера).
+ *   • logoStatic (в потоке брендового блока, над текстом) — виден в docked.
+ *     Едет вместе с текстом нативным скроллом → «прилипает» к надписи,
+ *     не прыгает.
  *
  * Снятие инерции после доезда — по «тишине» ввода (QUIET_MS): держим цель,
- * пока поток событий не замолчит, гася остаточный momentum (чистая остановка
- * без «фантомного» доезда).
+ * пока поток событий не замолчит (чистая остановка без «фантомного» доезда).
  */
 type SnapState = "hero" | "snapping" | "docked";
 
 const SNAP_DURATION = 850;
-const QUIET_MS = 30; // мс «тишины» ввода перед снятием придержки
+const QUIET_MS = 30;
 const EDGE = 2;
 const THRESH = 6;
-const LOGO_DOCKED_H = 32; // px — высота логотипа в брендовом блоке
-const LOGO_SLOT_Y = -34; // px — смещение логотипа вверх от центра (над текстом)
-const LOGO_RATIO = 1959 / 506; // пропорции murjak-logo.svg
+const LOGO_RATIO = 1959.53 / 506.385;
 
 function easeInOutCubic(t: number): number {
   return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
@@ -43,17 +44,28 @@ function easeInOutCubic(t: number): number {
 
 export function HomeShell({ items }: { items: ProductDto[] }) {
   const [state, setState] = useState<SnapState>("hero");
+  const [logoBig, setLogoBig] = useState(true); // логотип в «геройском» размере
+  const [bigScale, setBigScale] = useState(10); // во сколько раз увеличить 32px
 
   const stateRef = useRef<SnapState>("hero");
   const targetRef = useRef<HTMLElement>(null); // брендовый блок — цель снапа
-  const logoRef = useRef<HTMLImageElement>(null);
-  const descRef = useRef<HTMLParagraphElement>(null);
-  const suppressRef = useRef(false);
 
   const setSnapState = (s: SnapState) => {
     stateRef.current = s;
     setState(s);
   };
+
+  // Масштаб hero-логотипа: 32px-база → ~ширина вьюпорта (пересчёт на ресайз).
+  useEffect(() => {
+    const calc = () => {
+      const heroW = Math.min(window.innerWidth * 0.92, 1760);
+      const heroH = heroW / LOGO_RATIO;
+      setBigScale(heroH / 32);
+    };
+    calc();
+    window.addEventListener("resize", calc);
+    return () => window.removeEventListener("resize", calc);
+  }, []);
 
   useEffect(() => {
     if ("scrollRestoration" in history) history.scrollRestoration = "manual";
@@ -69,33 +81,6 @@ export function HomeShell({ items }: { items: ProductDto[] }) {
     const targetTop = () =>
       targetRef.current ? targetRef.current.offsetTop : window.innerHeight;
 
-    // ── Переезд логотипа: чистая функция от scrollY ──────────────────────
-    const updateLogo = () => {
-      const logo = logoRef.current;
-      if (!logo) return;
-      const H = targetTop() || window.innerHeight;
-      const y = window.scrollY;
-      // масштаб «hero»: логотип отрисован высотой LOGO_DOCKED_H (32px),
-      // в hero увеличиваем до ~ширины вьюпорта (SVG, без потери чёткости)
-      const heroW = Math.min(window.innerWidth * 0.92, 1760);
-      const heroH = heroW / LOGO_RATIO;
-      const big = heroH / LOGO_DOCKED_H;
-
-      const p = H > 0 ? Math.min(1, Math.max(0, y / H)) : 1;
-      const e = easeInOutCubic(p);
-      const scale = big + (1 - big) * e; // big → 1
-      let ty: number;
-      if (y <= H) ty = LOGO_SLOT_Y * e; // центр → слот над текстом
-      else ty = LOGO_SLOT_Y - (y - H); // уезжает вверх вместе с контентом
-
-      logo.style.transform = `translate(-50%, calc(-50% + ${ty}px)) scale(${scale})`;
-
-      if (descRef.current) {
-        const o = Math.min(1, Math.max(0, (p - 0.5) / 0.45));
-        descRef.current.style.opacity = String(o);
-      }
-    };
-
     const clearWatchdog = () => {
       if (watchdog !== null) {
         window.clearInterval(watchdog);
@@ -110,7 +95,6 @@ export function HomeShell({ items }: { items: ProductDto[] }) {
           clearWatchdog();
           tweenDone = false;
           window.scrollTo(0, holdTarget);
-          updateLogo();
           setSnapState(after);
         }
       }, 16);
@@ -124,7 +108,6 @@ export function HomeShell({ items }: { items: ProductDto[] }) {
       const frame = (now: number) => {
         const t = Math.min(1, (now - start) / SNAP_DURATION);
         window.scrollTo(0, Math.round(startY + dist * easeInOutCubic(t)));
-        updateLogo(); // двигаем логотип синхронно с доездом
         if (t < 1) tweenRaf = requestAnimationFrame(frame);
         else {
           tweenRaf = null;
@@ -135,8 +118,9 @@ export function HomeShell({ items }: { items: ProductDto[] }) {
     };
 
     const snapForward = () => {
-      if (stateRef.current !== "hero" || suppressRef.current) return;
+      if (stateRef.current !== "hero") return;
       setSnapState("snapping");
+      setLogoBig(false); // CSS-переход: большой → 32px (как карточка)
       holdTarget = targetTop();
       tweenDone = false;
       tweenTo(holdTarget, () => {
@@ -147,8 +131,9 @@ export function HomeShell({ items }: { items: ProductDto[] }) {
     };
 
     const snapBack = () => {
-      if (stateRef.current !== "docked" || suppressRef.current) return;
+      if (stateRef.current !== "docked") return;
       setSnapState("snapping");
+      setLogoBig(true); // CSS-переход: 32px → большой
       holdTarget = 0;
       tweenDone = false;
       tweenTo(0, () => {
@@ -167,10 +152,7 @@ export function HomeShell({ items }: { items: ProductDto[] }) {
         if (e.deltaY > 0) snapForward();
       } else if (st === "snapping") {
         e.preventDefault();
-        if (tweenDone) {
-          window.scrollTo(0, holdTarget);
-          updateLogo();
-        }
+        if (tweenDone) window.scrollTo(0, holdTarget);
       } else {
         if (e.deltaY < 0 && window.scrollY <= targetTop() + EDGE) {
           e.preventDefault();
@@ -193,10 +175,7 @@ export function HomeShell({ items }: { items: ProductDto[] }) {
         if (sy - y > THRESH) snapForward();
       } else if (st === "snapping") {
         e.preventDefault();
-        if (tweenDone) {
-          window.scrollTo(0, holdTarget);
-          updateLogo();
-        }
+        if (tweenDone) window.scrollTo(0, holdTarget);
       } else {
         if (y - sy > THRESH && window.scrollY <= targetTop() + EDGE) {
           e.preventDefault();
@@ -230,30 +209,19 @@ export function HomeShell({ items }: { items: ProductDto[] }) {
       }
     };
 
-    // Свободный скролл (docked) и любой системный скролл — двигаем логотип,
-    // плюс придержка верхней границы зоны контента.
-    let scrollRaf = 0;
+    // Придержка верхней границы зоны контента (в docked не пускаем выше начала
+    // брендового блока — туда только обратным снапом).
     const onScroll = () => {
-      if (!scrollRaf) {
-        scrollRaf = requestAnimationFrame(() => {
-          scrollRaf = 0;
-          updateLogo();
-        });
-      }
-      if (stateRef.current !== "docked" || suppressRef.current) return;
+      if (stateRef.current !== "docked") return;
       const top = targetTop();
       if (window.scrollY < top) window.scrollTo(0, top);
     };
-
-    const onResize = () => updateLogo();
 
     window.addEventListener("wheel", onWheel, { passive: false });
     window.addEventListener("touchstart", onTouchStart, { passive: true });
     window.addEventListener("touchmove", onTouchMove, { passive: false });
     window.addEventListener("keydown", onKeyDown);
     window.addEventListener("scroll", onScroll, { passive: true });
-    window.addEventListener("resize", onResize);
-    updateLogo(); // начальная отрисовка (hero)
 
     return () => {
       window.removeEventListener("wheel", onWheel);
@@ -261,29 +229,31 @@ export function HomeShell({ items }: { items: ProductDto[] }) {
       window.removeEventListener("touchmove", onTouchMove);
       window.removeEventListener("keydown", onKeyDown);
       window.removeEventListener("scroll", onScroll);
-      window.removeEventListener("resize", onResize);
       if (tweenRaf) cancelAnimationFrame(tweenRaf);
-      if (scrollRaf) cancelAnimationFrame(scrollRaf);
       clearWatchdog();
     };
   }, []);
 
-  // state используется только чтобы React не ругался на неиспользование;
-  // вся визуальная логика логотипа — императивная (по scrollY).
-  void state;
+  const docked = state === "docked";
 
   return (
     <>
-      {/* Логотип-оверлей: единый для hero и брендового блока, переезжает */}
-      <div className={styles.logoOverlay} aria-hidden="true">
-        <Image
-          ref={logoRef}
-          src="/brand/murjak-logo.svg"
-          alt={config.storeName}
-          width={1959}
-          height={506}
-          className={styles.logoImg}
-          priority
+      {/* Логотип-оверлей (hero / переезд). Прячем в docked — там работает
+          статичный логотип в потоке брендового блока. */}
+      <div
+        className={styles.logoOverlay}
+        style={
+          {
+            opacity: docked ? 0 : 1,
+            "--logo-big": bigScale,
+          } as React.CSSProperties
+        }
+        aria-hidden="true"
+      >
+        <LogoSvg
+          className={`${styles.logoFixed} ${
+            logoBig ? styles.logoFixedBig : styles.logoFixedSmall
+          }`}
         />
       </div>
 
@@ -301,9 +271,14 @@ export function HomeShell({ items }: { items: ProductDto[] }) {
         />
       </section>
 
-      {/* 2) Брендовый блок — цель снапа; логотип «приземляется» сюда */}
+      {/* 2) Брендовый блок — цель снапа; статичный логотип над описанием */}
       <section ref={targetRef} className={styles.brand}>
-        <p ref={descRef} className={styles.brandDesc}>
+        <LogoSvg
+          className={`${styles.logoStatic} ${
+            docked ? "" : styles.logoStaticHidden
+          }`}
+        />
+        <p className={styles.brandDesc}>
           Это бренд, который занимается популяризацией кардистри
         </p>
       </section>

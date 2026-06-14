@@ -1,6 +1,4 @@
-/* ===== Логотип-оверлей (единый для hero и брендового блока) ===== */
-/* fixed на весь вьюпорт; логотип позиционируется по центру, трансформ
-   задаётся из JS (переезд/масштаб по scrollY). */
+/* ===== Логотип-оверлей (hero + переезд) ===== */
 .logoOverlay {
   position: fixed;
   inset: 0;
@@ -8,16 +6,44 @@
   pointer-events: none;
 }
 
-.logoImg {
+/* fixed-логотип: базовая высота 32px, hero-размер — через transform: scale.
+   Анимация переезда/масштаба — CSS-transition (как блок информации в карточке). */
+.logoFixed {
   position: absolute;
   left: 50%;
   top: 50%;
-  height: 32px; /* базовая (докед) высота; в hero увеличивается transform'ом */
+  height: 32px;
   width: auto;
   transform-origin: center;
-  /* белый логотип «вычитается» из фона — как в макете */
   mix-blend-mode: difference;
   will-change: transform;
+  transition: transform 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* «геройский» размер: 32px × --logo-big, по центру вьюпорта */
+.logoFixedBig {
+  transform: translate(-50%, -50%) scale(var(--logo-big, 10));
+}
+
+/* «докед» размер: 32px, чуть выше центра — над описанием */
+.logoFixedSmall {
+  transform: translate(-50%, calc(-50% - 34px)) scale(1);
+}
+
+/* статичный логотип в потоке брендового блока — едет с текстом без джиттера.
+   Позиция совпадает с logoFixedSmall в момент дока (бренд-блок у верха). */
+.logoStatic {
+  position: absolute;
+  left: 50%;
+  top: calc(50% - 34px);
+  transform: translate(-50%, -50%);
+  height: 32px;
+  width: auto;
+  mix-blend-mode: difference;
+}
+
+.logoStaticHidden {
+  opacity: 0;
 }
 
 /* ===== Hero: фуллскрин-видео ===== */
