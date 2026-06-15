@@ -33,9 +33,9 @@
   .thumbs {
     flex-direction: row;
     width: 100%;
-    /* горизонтальный скролл от левого края — без обрезки крайних миниатюр;
-       по краям небольшой воздух, чтобы первая/последняя не липли к границе */
-    justify-content: flex-start;
+    /* по центру, пока миниатюры влезают; при переполнении ведёт себя как
+       flex-start (safe) — крайние не обрезаются и доступны скроллом */
+    justify-content: safe center;
     overflow-x: auto;
     overflow-y: hidden;
     padding: 2px;

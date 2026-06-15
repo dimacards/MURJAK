@@ -125,24 +125,23 @@
   pointer-events: none;
 }
 
-/* На мобилке CTA прибита к нижней границе экрана — бар во всю ширину */
+/* На мобилке CTA «плывёт» у нижней границы экрана, а при докрутке страницы
+   до конца — встаёт на своё прежнее место под описанием.
+   Скругление и отступы по краям наследуются из базового .cta (как раньше). */
 @media (max-width: 767px) {
+  /* внутренний скролл info отключаем — скроллится страница, чтобы sticky
+     цеплялся за нижнюю границу вьюпорта, а не за бокс info */
   .info {
-    /* воздух снизу, чтобы последний пункт не уходил под фиксированный бар */
-    padding-bottom: 88px;
+    max-height: none;
+    overflow: visible;
   }
 
   .cta {
-    position: fixed;
-    left: 0;
-    right: 0;
-    bottom: 0;
+    position: sticky;
+    /* отступ снизу + home-indicator на iPhone */
+    bottom: calc(16px + env(safe-area-inset-bottom, 0px));
     z-index: 30;
-    width: auto;
-    border-radius: 0;
-    /* учитываем «чёлку»/home-indicator на iPhone */
-    padding: 16px 20px calc(16px + env(safe-area-inset-bottom, 0px));
-    box-shadow: 0 -10px 28px rgba(0, 0, 0, 0.55);
+    box-shadow: 0 8px 28px rgba(0, 0, 0, 0.5);
   }
 }
 
