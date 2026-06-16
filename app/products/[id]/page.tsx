@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { prisma } from "@/lib/db";
 import config from "@/lib/config";
+import { cdnUrl } from "@/lib/media-url";
 import type { ProductDto } from "@/lib/api-types";
 import { Footer } from "@/components/Footer";
 import { Gallery } from "@/components/Gallery";
@@ -59,7 +60,7 @@ async function fetchProduct(idStr: string): Promise<ProductDto | null> {
     price: product.price,
     inStock: product.inStock,
     photos: product.photos.map((p) => ({ url: p.publicUrl, kind: p.kind })),
-    videoUrl: product.videoPublicUrl ?? null,
+    videoUrl: cdnUrl(product.videoPublicUrl),
     features: product.features.map((f) => f.text),
     createdAt: product.createdAt.toISOString(),
   };

@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { ProductDto } from "@/lib/api-types";
 import config from "@/lib/config";
+import { cdnUrl } from "@/lib/media-url";
 import { Footer } from "./Footer";
 import { LogoSvg } from "./LogoSvg";
 import { ProductGrid } from "./ProductGrid";
@@ -261,7 +262,7 @@ export function HomeShell({ items }: { items: ProductDto[] }) {
       <section className={styles.hero}>
         <video
           className={styles.heroVideo}
-          src={config.heroVideoUrl}
+          src={cdnUrl(config.heroVideoUrl) ?? config.heroVideoUrl}
           autoPlay
           muted
           loop

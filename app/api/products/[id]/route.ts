@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/db";
+import { cdnUrl } from "@/lib/media-url";
 import type { ProductDto } from "@/lib/api-types";
 
 export const runtime = "nodejs";
@@ -37,7 +38,7 @@ export async function GET(
       price: product.price,
       inStock: product.inStock,
       photos: product.photos.map((p) => ({ url: p.publicUrl, kind: p.kind })),
-      videoUrl: product.videoPublicUrl ?? null,
+      videoUrl: cdnUrl(product.videoPublicUrl),
       features: product.features.map((f) => f.text),
       createdAt: product.createdAt.toISOString(),
     };

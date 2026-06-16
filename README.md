@@ -117,6 +117,18 @@ npm run dev
 3. **Deploy**.
 4. После первого деплоя — добавь `NEXT_PUBLIC_SITE_URL` в env, ещё раз Redeploy.
 
+### CDN для видео в РФ (Gcore)
+Видео лежит в Supabase Storage (origin за рубежом), и в России крупные файлы
+душит провайдер — поэтому видео не догружалось. Перед Supabase поставлен
+pull-zone Gcore (узлы внутри РФ), а в коде хост видео-URL подменяется на
+CDN-домен (`lib/media-url.ts`).
+
+- Origin в Gcore = `…​.supabase.co` (протокол **HTTPS**, Host override = тот же хост).
+- Включить подмену: задать `NEXT_PUBLIC_MEDIA_CDN_HOST=cdn.murjak.ru` в env Vercel.
+- Это `NEXT_PUBLIC_*` → вшивается при сборке, после изменения нужен **Redeploy**.
+- Если переменная пустая — видео отдаётся напрямую из Supabase (как было).
+- Фото остаются на Supabase (мелкие, грузятся нормально).
+
 ### Webhook Telegram
 После деплоя поставь webhook на URL Vercel:
 
