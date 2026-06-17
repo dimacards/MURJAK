@@ -1,0 +1,22 @@
+[
+  {
+    "id": 1,
+    "name": "Футболка",
+    "price": 9990,
+    "inStock": true,
+    "photos": [
+      { "url": "/products/futbolka/model-1.jpg", "kind": "MODEL" },
+      { "url": "/products/futbolka/model-2.jpg", "kind": "MODEL" },
+      { "url": "/products/futbolka/item-1.png", "kind": "ITEM" },
+      { "url": "/products/futbolka/item-2.png", "kind": "ITEM" }
+    ],
+    "videoUrl": "/products/futbolka/video.mp4",
+    "features": [
+      "Состав: 90% хлопок, 10% полиэстер.",
+      "Плотность: 350-380 г.",
+      "Оверсайз, свободный крой.",
+      "Печать: шелкография."
+    ],
+    "createdAt": "2026-06-12T14:06:36.244Z"
+  }
+]

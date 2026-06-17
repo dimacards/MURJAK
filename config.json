@@ -2,5 +2,5 @@
   "storeName": "MURJAK",
   "sellerUsername": "mishoops",
   "currency": "₽",
-  "heroVideoUrl": "https://fbvxnwbqmfxyffprbcnj.supabase.co/storage/v1/object/public/products/brand/hero.mp4"
+  "heroVideoUrl": "/brand/hero.mp4"
 }

@@ -1,18 +1,16 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { prisma } from "@/lib/db";
 import config from "@/lib/config";
-import { cdnUrl } from "@/lib/media-url";
-import type { ProductDto } from "@/lib/api-types";
+import { getAllProducts, getProduct } from "@/lib/products";
 import { Footer } from "@/components/Footer";
 import { Gallery } from "@/components/Gallery";
 import { ProductDetails } from "@/components/ProductDetails";
 import styles from "./page.module.css";
 
-export const runtime = "nodejs";
-// ISR: кэш страницы товара с ревалидацией раз в 60 сек — чтобы Gcore отдавал
-// её с РФ-узла мгновенно, а не ходил на Vercel за рубеж на каждый запрос.
-export const revalidate = 60;
+/** Пререндер страницы для каждого товара (нужно для статического экспорта). */
+export function generateStaticParams() {
+  return getAllProducts().map((p) => ({ id: String(p.id) }));
+}
 
 /**
  * Метаданные карточки — для красивого превью при шаринге ссылки в Telegram.
@@ -23,7 +21,7 @@ export async function generateMetadata({
   params: Promise<{ id: string }>;
 }): Promise<Metadata> {
   const { id } = await params;
-  const product = await fetchProduct(id);
+  const product = getProduct(Number(id));
   if (!product) return { title: "Товар не найден" };
 
   const description = `${product.price} ${config.currency}${
@@ -42,37 +40,10 @@ export async function generateMetadata({
   };
 }
 
-async function fetchProduct(idStr: string): Promise<ProductDto | null> {
-  const id = Number(idStr);
-  if (!Number.isInteger(id) || id < 1) return null;
-
-  const product = await prisma.product.findUnique({
-    where: { id },
-    include: {
-      photos: { orderBy: { order: "asc" } },
-      features: { orderBy: { order: "asc" } },
-    },
-  });
-
-  if (!product) return null;
-
-  return {
-    id: product.id,
-    name: product.name,
-    price: product.price,
-    inStock: product.inStock,
-    photos: product.photos.map((p) => ({ url: p.publicUrl, kind: p.kind })),
-    videoUrl: cdnUrl(product.videoPublicUrl),
-    features: product.features.map((f) => f.text),
-    createdAt: product.createdAt.toISOString(),
-  };
-}
-
 /**
  * Страница товара:
  *  - слева каруселька со ВСЕМИ медиа (фото + видео как слайды);
- *  - справа (на месте бывшего видео) — статичный блок информации
- *    («игральная карта»), всегда раскрытый.
+ *  - справа — статичный блок информации («игральная карта»).
  */
 export default async function ProductPage({
   params,
@@ -80,7 +51,7 @@ export default async function ProductPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const product = await fetchProduct(id);
+  const product = getProduct(Number(id));
 
   if (!product) {
     return (
