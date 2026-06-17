@@ -4,7 +4,10 @@ import type { ProductDto } from "@/lib/api-types";
 import { HomeShell } from "@/components/HomeShell";
 
 export const runtime = "nodejs";
-export const dynamic = "force-dynamic";
+// ISR: страница кэшируется и пере-генерируется раз в 60 сек. Это позволяет
+// Gcore (РФ-edge) кэшировать HTML и отдавать его мгновенно, а за границу
+// (Vercel) ходить только на ревалидацию. Новый товар из бота появится ≤60 сек.
+export const revalidate = 60;
 
 /**
  * Главная: серверный фетч товаров → клиентская оболочка HomeShell,

@@ -10,7 +10,9 @@ import { ProductDetails } from "@/components/ProductDetails";
 import styles from "./page.module.css";
 
 export const runtime = "nodejs";
-export const dynamic = "force-dynamic";
+// ISR: кэш страницы товара с ревалидацией раз в 60 сек — чтобы Gcore отдавал
+// её с РФ-узла мгновенно, а не ходил на Vercel за рубеж на каждый запрос.
+export const revalidate = 60;
 
 /**
  * Метаданные карточки — для красивого превью при шаринге ссылки в Telegram.
