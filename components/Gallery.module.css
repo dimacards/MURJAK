@@ -98,7 +98,8 @@
   min-width: 0;
   height: 100%;
   background: #0a0a0a;
-  overflow: hidden;
+  /* свечение PNG не обрезается рамкой кадра */
+  overflow: visible;
   touch-action: pan-y;
 }
 
@@ -121,6 +122,12 @@
   /* «въезжает» в кадр: fade + лёгкий доезд снизу при смене слайда */
   animation: fadeIn 0.5s cubic-bezier(0.22, 0.61, 0.36, 1);
   will-change: opacity, transform;
+}
+
+/* крупное белое свечение по контуру PNG — только у первых 2 фото товара */
+.glow {
+  filter: drop-shadow(0 0 26px rgba(255, 255, 255, 0.5))
+    drop-shadow(0 0 9px rgba(255, 255, 255, 0.4));
 }
 
 @keyframes fadeIn {

@@ -5,7 +5,8 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
-    "lint": "eslint"
+    "lint": "eslint",
+    "prebuild": "node scripts/sync-php-data.mjs"
   },
   "dependencies": {
     "next": "16.2.6",

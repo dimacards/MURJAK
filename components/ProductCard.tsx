@@ -8,11 +8,7 @@ import styles from "./ProductCard.module.css";
  * Карточка товара в сетке (тёмная тема по макету).
  *
  * preferredKind — какой тип фото показывать (ITEM «вещь» / MODEL «на модели»).
- * При наведении курсора показывается ВТОРАЯ фотография той же категории
- * (если она есть): рендерим обе, hover переключает opacity.
- *
- * Фото — object-contain: PNG без фона (Photoroom) висит на чёрном фоне
- * секции, как в макете.
+ * При наведении курсора показывается вторая фотография (opacity-свап).
  */
 export function ProductCard({
   product,
@@ -28,6 +24,7 @@ export function ProductCard({
 
   const primary = pool[0];
   const secondary = pool[1];
+  const glow = product.glow ? " " + styles.glow : "";
 
   return (
     <Link href={`/products/${product.id}`} className={styles.card}>
@@ -39,7 +36,7 @@ export function ProductCard({
               alt={product.name}
               fill
               sizes="(min-width: 768px) 33vw, 50vw"
-              className={styles.image}
+              className={`${styles.image}${glow}`}
             />
             {secondary && (
               <Image
@@ -47,7 +44,7 @@ export function ProductCard({
                 alt=""
                 fill
                 sizes="(min-width: 768px) 33vw, 50vw"
-                className={styles.imageHover}
+                className={`${styles.imageHover}${glow}`}
               />
             )}
           </>
@@ -55,7 +52,9 @@ export function ProductCard({
           <div className={styles.imagePlaceholder} aria-hidden="true" />
         )}
         {!product.inStock && (
-          <div className={styles.outOfStockBadge}>нет в наличии</div>
+          <div className={styles.outOfStockOverlay}>
+            <span>сейчас нет в наличии</span>
+          </div>
         )}
       </div>
 

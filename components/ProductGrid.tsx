@@ -1,19 +1,32 @@
 "use client";
 
-import { useState } from "react";
-import Image from "next/image";
-import type { PhotoKind, ProductDto } from "@/lib/api-types";
+import { useEffect, useState } from "react";
+import type { ProductDto } from "@/lib/api-types";
 import { ProductCard } from "./ProductCard";
+import { Reveal } from "./Reveal";
 import styles from "./ProductGrid.module.css";
 
 /**
- * Фильтр-иконки (вещь / на модели) + сетка карточек.
- *
- * Иконки из макета: футболка = сама вещь (по умолчанию), человек = на модели.
- * Активная — полная яркость, неактивная — приглушена.
+ * Секция «Товары»: грузит наличие из /api/stock.php (PHP-бэк на Beget).
+ * Если API недоступен — показываем то, что в статическом products.json.
+ * Товары без наличия уезжают в конец сетки и затемняются плашкой в карточке.
  */
 export function ProductGrid({ items }: { items: ProductDto[] }) {
-  const [kind, setKind] = useState<PhotoKind>("ITEM");
+  const [stock, setStock] = useState<Record<string, boolean> | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetch("/api/stock.php", { cache: "no-store" })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((j) => {
+        if (cancelled || !j || typeof j !== "object") return;
+        setStock(j as Record<string, boolean>);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   if (items.length === 0) {
     return (
@@ -23,54 +36,25 @@ export function ProductGrid({ items }: { items: ProductDto[] }) {
     );
   }
 
+  const merged = items.map((p) => {
+    const v = stock?.[String(p.id)];
+    return typeof v === "boolean" ? { ...p, inStock: v } : p;
+  });
+  // в наличии — сверху, нет в наличии — в конец; внутри групп порядок сохраняем
+  const ordered = [
+    ...merged.filter((p) => p.inStock),
+    ...merged.filter((p) => !p.inStock),
+  ];
+
   return (
-    <>
-      {/* Заголовок — за пределами фрейма */}
-      <h1 className={styles.sectionTitle}>Товары</h1>
-
-      {/* Фильтр одежда/модель — во фрейме как у инфо-карточки */}
-      <div className={styles.headerCard}>
-        <div className={styles.kindToggle} role="group" aria-label="Вид фото">
-          <button
-            type="button"
-            className={`${styles.kindBtn} ${kind === "ITEM" ? styles.kindBtnActive : ""}`}
-            onClick={() => setKind("ITEM")}
-            aria-pressed={kind === "ITEM"}
-            aria-label="Показать фото вещи"
-          >
-            <Image
-              src="/brand/icon-item.svg"
-              alt=""
-              width={24}
-              height={24}
-              className={styles.kindIcon}
-            />
-          </button>
-          <button
-            type="button"
-            className={`${styles.kindBtn} ${kind === "MODEL" ? styles.kindBtnActive : ""}`}
-            onClick={() => setKind("MODEL")}
-            aria-pressed={kind === "MODEL"}
-            aria-label="Показать фото на модели"
-          >
-            <Image
-              src="/brand/icon-model.svg"
-              alt=""
-              width={24}
-              height={24}
-              className={styles.kindIcon}
-            />
-          </button>
-        </div>
-      </div>
-
-      <ul className={styles.grid}>
-        {items.map((p) => (
-          <li key={p.id} className={styles.cell}>
-            <ProductCard product={p} preferredKind={kind} />
-          </li>
-        ))}
-      </ul>
-    </>
+    <ul className={styles.grid}>
+      {ordered.map((p, i) => (
+        <li key={p.id} className={styles.cell}>
+          <Reveal delay={i % 3 === 0 ? 0 : i % 3 === 1 ? 100 : 200}>
+            <ProductCard product={p} preferredKind="ITEM" />
+          </Reveal>
+        </li>
+      ))}
+    </ul>
   );
 }

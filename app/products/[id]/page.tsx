@@ -5,6 +5,7 @@ import { getAllProducts, getProduct } from "@/lib/products";
 import { Footer } from "@/components/Footer";
 import { Gallery } from "@/components/Gallery";
 import { ProductDetails } from "@/components/ProductDetails";
+import { ScrollTop } from "@/components/ScrollTop";
 import styles from "./page.module.css";
 
 /** Пререндер страницы для каждого товара (нужно для статического экспорта). */
@@ -75,8 +76,9 @@ export default async function ProductPage({
 
   return (
     <main className={styles.main}>
-      <Link href="/" className={styles.back}>
-        ← К каталогу
+      <ScrollTop />
+      <Link href="/" className={styles.back} aria-label="Назад к каталогу">
+        <span className={styles.backArrow} aria-hidden="true" />
       </Link>
 
       <div className={styles.layout}>
@@ -85,6 +87,7 @@ export default async function ProductPage({
             photos={orderedPhotos.map((p) => p.url)}
             videoUrl={product.videoUrl}
             title={product.name}
+            glow={product.glow}
           />
         </div>
         <div className={styles.detailsCol}>

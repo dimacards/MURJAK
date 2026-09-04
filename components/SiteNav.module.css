@@ -1,0 +1,93 @@
+/* ===== Бургер ↔ крестик (на всех размерах) ===== */
+.burger {
+  position: fixed;
+  top: 14px;
+  right: 14px;
+  z-index: 1100;
+  width: 44px;
+  height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  margin: 0;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  color: #fff;
+  /* тень, чтобы иконка была видна на видео */
+  filter: drop-shadow(0 1px 6px rgba(0, 0, 0, 0.8));
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* ===== Затемнение + блюр фона ===== */
+.backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  background: rgba(0, 0, 0, 0.55);
+  backdrop-filter: blur(9px);
+  -webkit-backdrop-filter: blur(9px);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.35s ease;
+}
+.backdropOpen {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+/* ===== Панель: выезжает справа. Опции сверху, логотип снизу ===== */
+.panel {
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 1050;
+  width: min(86vw, 400px);
+  background: #000;
+  border-left: 1px solid rgba(255, 255, 255, 0.12);
+  padding: calc(14px + 44px + 28px) clamp(24px, 4vw, 48px)
+    calc(28px + env(safe-area-inset-bottom, 0px));
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  /* опции — сверху, логотип — снизу */
+  justify-content: space-between;
+  gap: 40px;
+  transform: translateX(100%);
+  transition: transform 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+}
+.panelOpen {
+  transform: translateX(0);
+}
+
+.panelNav {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.panelLink {
+  font-family: var(--font-heading);
+  font-weight: 700;
+  font-size: 24px;
+  letter-spacing: 0.01em;
+  text-transform: uppercase;
+  color: #3b3b3b; /* неактивная — в цвет фантомных надписей */
+  transition: color 0.2s ease;
+}
+.panelLink.active {
+  color: #fff;
+}
+@media (hover: hover) and (pointer: fine) {
+  .panelLink:hover {
+    color: #fff;
+  }
+}
+
+/* логотип внизу панели */
+.panelLogo {
+  height: 26px;
+  width: auto;
+  opacity: 0.9;
+}

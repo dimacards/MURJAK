@@ -1,19 +1,16 @@
 /**
- * Логотип MURJAK как инлайн-SVG (а не <img src=...svg>).
- *
- * Инлайн нужен, чтобы при сильном увеличении в hero не было растеризации:
- * <img> рендерит SVG в его CSS-размере (32px) и масштабирует transform'ом
- * уже растр → размытие. Инлайн-<svg> масштабируется как вектор — чётко
- * на любом размере.
- *
- * Размер задаётся через CSS (height), ширина — из viewBox.
+ * Логотип MURJAK как инлайн-SVG. Чистый вектор без фильтров внутри.
+ * Тень рисуется CSS-фильтром на `.logoFixed` / `.logoStatic` — безопасно,
+ * потому что CSS-размер лого = финальный (hero); никакого upscale-битмапа,
+ * никакой пикселизации в Safari.
  */
 export function LogoSvg({ className }: { className?: string }) {
   return (
     <svg
-      viewBox="0 0 1959.53 506.385"
+      viewBox="100 100 1759.53 306.385"
       className={className}
       fill="none"
+      overflow="visible"
       xmlns="http://www.w3.org/2000/svg"
       aria-hidden="true"
     >

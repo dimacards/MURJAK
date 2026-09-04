@@ -1,6 +1,9 @@
 import type { Metadata } from "next";
 import { Manrope } from "next/font/google";
 import config from "@/lib/config";
+import { SiteNav } from "@/components/SiteNav";
+import { PageFade } from "@/components/PageFade";
+import { ViewportHeight } from "@/components/ViewportHeight";
 import "./globals.css";
 
 // Manrope — основной шрифт всего сайта по макету
@@ -11,7 +14,7 @@ const manrope = Manrope({
   subsets: ["latin", "cyrillic"],
 });
 
-const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000";
+const siteUrl = config.siteUrl;
 
 export const metadata: Metadata = {
   metadataBase: new URL(siteUrl),
@@ -41,7 +44,12 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="ru" className={manrope.variable}>
-      <body>{children}</body>
+      <body>
+        <ViewportHeight />
+        <SiteNav />
+        <PageFade />
+        {children}
+      </body>
     </html>
   );
 }

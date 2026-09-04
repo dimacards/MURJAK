@@ -1,22 +1,147 @@
 [
   {
     "id": 1,
-    "name": "Футболка",
-    "price": 9990,
+    "name": "Футболка «Hands»",
+    "price": 3500,
     "inStock": true,
+    "glow": true,
     "photos": [
-      { "url": "/products/futbolka/model-1.jpg", "kind": "MODEL" },
-      { "url": "/products/futbolka/model-2.jpg", "kind": "MODEL" },
-      { "url": "/products/futbolka/item-1.png", "kind": "ITEM" },
-      { "url": "/products/futbolka/item-2.png", "kind": "ITEM" }
+      {
+        "url": "/products/futbolka/item-1.png",
+        "kind": "ITEM"
+      },
+      {
+        "url": "/products/futbolka/item-2.png",
+        "kind": "ITEM"
+      },
+      {
+        "url": "/products/futbolka/model-1.jpg",
+        "kind": "MODEL"
+      },
+      {
+        "url": "/products/futbolka/model-2.jpg",
+        "kind": "MODEL"
+      }
     ],
     "videoUrl": "/products/futbolka/video.mp4",
     "features": [
-      "Состав: 90% хлопок, 10% полиэстер.",
-      "Плотность: 350-380 г.",
-      "Оверсайз, свободный крой.",
-      "Печать: шелкография."
+      "Бесплатная доставка для первых трёх заказов",
+      "Состав: кулирка, 100% хлопок",
+      "Плотность: 200 г",
+      "Кропнутый силуэт",
+      "Свободный крой",
+      "Принты с обеих сторон"
     ],
-    "createdAt": "2026-06-12T14:06:36.244Z"
+    "createdAt": "2026-06-26T10:00:04.000Z",
+    "sizes": [
+      "S",
+      "M",
+      "L",
+      "XL"
+    ]
+  },
+  {
+    "id": 2,
+    "name": "Худи «энциклопедия»",
+    "price": 9990,
+    "inStock": true,
+    "glow": true,
+    "photos": [
+      {
+        "url": "/products/hoodie/item-1.png",
+        "kind": "ITEM"
+      },
+      {
+        "url": "/products/hoodie/item-2.png",
+        "kind": "ITEM"
+      },
+      {
+        "url": "/products/hoodie/model-1.jpg",
+        "kind": "MODEL"
+      }
+    ],
+    "videoUrl": "/products/hoodie/IMG_2252.mp4",
+    "features": [
+      "Первые три заказа получат по колоде карт",
+      "Состав: 90% хлопок, 10% полиэстер",
+      "Плотность: 350–380 г",
+      "Оверсайз, свободный крой",
+      "Печать: шелкография"
+    ],
+    "createdAt": "2026-06-26T10:00:03.000Z",
+    "sizes": [
+      "S",
+      "M",
+      "L",
+      "XL"
+    ]
+  },
+  {
+    "id": 3,
+    "name": "Лонгслив «валет черви»",
+    "price": 5500,
+    "inStock": true,
+    "photos": [
+      {
+        "url": "/products/longsleeve/item-1.png",
+        "kind": "ITEM"
+      },
+      {
+        "url": "/products/longsleeve/item-2.png",
+        "kind": "ITEM"
+      },
+      {
+        "url": "/products/longsleeve/model-1.jpg",
+        "kind": "MODEL"
+      },
+      {
+        "url": "/products/longsleeve/model-2.jpg",
+        "kind": "MODEL"
+      }
+    ],
+    "videoUrl": null,
+    "features": [
+      "Бесплатная доставка для первых трёх заказов",
+      "Состав: 95% хлопок, 5% лайкра",
+      "Плотность: 220–240 г",
+      "Кропнутый силуэт, правильный крой",
+      "Вышивка на груди"
+    ],
+    "createdAt": "2026-06-26T10:00:02.000Z",
+    "sizes": [
+      "S",
+      "M",
+      "L",
+      "XL"
+    ]
+  },
+  {
+    "id": 4,
+    "name": "Подвеска «SPOT»",
+    "price": 9990,
+    "inStock": true,
+    "photos": [
+      {
+        "url": "/products/spot/item-1.jpg",
+        "kind": "ITEM"
+      },
+      {
+        "url": "/products/spot/item-2.jpg",
+        "kind": "ITEM"
+      },
+      {
+        "url": "/products/spot/model-2.jpg",
+        "kind": "MODEL"
+      }
+    ],
+    "videoUrl": null,
+    "features": [
+      "Подвеска — 100% серебро, 925 пробы",
+      "Цепочка — 100% серебро, 925 пробы",
+      "Сзади изображён валет червей — символ бренда",
+      "«SPOT» — название колоды карт бренда"
+    ],
+    "createdAt": "2026-06-26T10:00:01.000Z",
+    "sizes": []
   }
 ]

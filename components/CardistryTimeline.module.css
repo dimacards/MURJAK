@@ -1,0 +1,203 @@
+/* Вертикальный таймлайн эпохи: стрелка-ось растёт по скроллу; события разложены
+   по 12-колоночной сетке хаотично (год и фото в разных колонках, не столбиком);
+   фото крупные, без обрезки, заполняют пустоту. */
+
+.timeline {
+  --ax: clamp(34px, 6vw, 80px);
+  position: relative;
+  padding-left: calc(var(--ax) + clamp(20px, 4vw, 56px));
+}
+
+/* Растущая стрелка-ось: толстая #3B3B3B + блюр (зерно сверху от страницы),
+   снизу — треугольный наконечник. Высота задаётся из JS. */
+.arrow {
+  position: absolute;
+  top: 0;
+  left: var(--ax);
+  transform: translateX(-50%);
+  width: clamp(9px, 1.1vw, 16px);
+  background: #3b3b3b;
+  filter: blur(8px);
+  will-change: height;
+  pointer-events: none;
+}
+.arrow::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  bottom: 0;
+  width: clamp(24px, 3vw, 46px);
+  height: clamp(24px, 3vw, 46px);
+  border-right: clamp(9px, 1.1vw, 16px) solid #3b3b3b;
+  border-bottom: clamp(9px, 1.1vw, 16px) solid #3b3b3b;
+  transform: translate(-50%, 35%) rotate(45deg);
+}
+
+.events {
+  display: flex;
+  flex-direction: column;
+  gap: clamp(64px, calc(11 * var(--svh, 1svh)), 150px);
+}
+
+/* плотный таймлайн (эра 1 и 3): меньше вертикальный отступ между событиями */
+.dense .events {
+  gap: clamp(16px, calc(3 * var(--svh, 1svh)), 44px);
+}
+
+/* Каждое событие — один ряд (flex): фото слева, его подпись вплотную справа.
+   Блок фото ужимается ровно по ширине картинки (flex: 0 0 auto), текст течёт
+   рядом и занимает остальное место — дата помещается в одну строку. */
+.event {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: clamp(18px, 3vw, 48px);
+}
+
+/* фото: блок = ширине картинки; чистое Ч/Б; тёмное сливается с фоном */
+.frame {
+  position: relative;
+  z-index: 1;
+  order: -1; /* в DOM фото после текста — поднимаем его влево */
+  flex: 0 0 auto;
+  max-width: 56%;
+  margin: 0;
+}
+.mediaImg {
+  display: block;
+  width: auto;
+  height: auto;
+  max-width: 100%;
+  max-height: clamp(220px, calc(36 * var(--svh, 1svh)), 400px);
+  filter: grayscale(1) contrast(var(--media-contrast, 1.25))
+    brightness(var(--media-brightness, 1.05));
+  mix-blend-mode: screen;
+}
+
+.body {
+  position: relative;
+  z-index: 1;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.year {
+  display: block;
+  white-space: nowrap; /* дата в одну строку, не в столбик */
+  font-family: var(--font-heading);
+  font-weight: 700;
+  font-size: clamp(28px, 4.2vw, 64px);
+  line-height: 0.9;
+  letter-spacing: -0.02em;
+  color: #fff;
+}
+
+.caption {
+  margin-top: 10px;
+  max-width: 34ch;
+  font-weight: 500;
+  font-size: 13px;
+  line-height: 1.45;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #fff;
+}
+
+/* Ширина текста у событий без фото — не на всю строку */
+.event:not(:has(.frame)) .body {
+  flex: 0 1 auto;
+  width: min(46%, 460px);
+}
+
+/* ===== Сторона и выравнивание (класс задаёт компонент по данным) ===== */
+/* Слева: фото слева, текст слева от правого края фото */
+.alignLeft {
+  justify-content: flex-start;
+}
+.alignLeft .frame {
+  order: -1;
+}
+.alignLeft .body {
+  text-align: left;
+}
+
+/* Справа: фото справа, текст по правому краю; не вплотную к краю —
+   отодвинуто внутрь, ближе к середине */
+.alignRight {
+  justify-content: flex-end;
+  padding-right: clamp(40px, 12vw, 210px);
+}
+.noPhotoRight {
+  padding-right: clamp(40px, 12vw, 210px);
+}
+.alignRight .frame {
+  order: 1;
+}
+.alignRight .body {
+  text-align: right;
+}
+.alignRight .caption {
+  margin-left: auto;
+}
+
+/* Без фото — только текст на своей стороне */
+.noPhotoLeft {
+  justify-content: flex-start;
+}
+.noPhotoRight {
+  justify-content: flex-end;
+}
+
+/* ===== Мобилка: всё в один поток, фото под текстом, читаемо ===== */
+@media (max-width: 720px) {
+  .timeline {
+    --ax: 20px;
+    padding-left: 40px;
+  }
+  /* блюр стрелки меньше — чтобы не сливалась в кашу, как у слов */
+  .arrow {
+    filter: blur(4px);
+    width: clamp(6px, 2vw, 10px);
+  }
+  .events {
+    gap: 56px;
+  }
+  /* в столбик: текст сверху, его фото вплотную снизу; сброс десктопных сторон */
+  .event,
+  .alignLeft,
+  .alignRight,
+  .noPhotoLeft,
+  .noPhotoRight {
+    flex-direction: column;
+    align-items: stretch;
+    justify-content: initial;
+    gap: 0;
+    padding-right: 0;
+  }
+  .frame,
+  .alignRight .frame,
+  .alignLeft .frame {
+    order: 0; /* по порядку DOM — фото под текстом */
+    max-width: 100%;
+    margin-top: 12px;
+  }
+  .alignRight .body,
+  .alignLeft .body {
+    text-align: left;
+  }
+  .alignRight .caption {
+    margin-left: 0;
+  }
+  .body,
+  .event:not(:has(.frame)) .body {
+    width: auto;
+  }
+  /* фото всегда пропорционально — не сжимается и не растягивается ни при
+     какой ширине экрана (ограничено и по ширине, и по высоте) */
+  .mediaImg {
+    width: auto;
+    height: auto;
+    max-width: 100%;
+    max-height: calc(56 * var(--svh, 1svh));
+  }
+}

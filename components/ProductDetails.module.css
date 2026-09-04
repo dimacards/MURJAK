@@ -17,7 +17,7 @@
 /* Заголовок + «поделиться» в строку */
 .head {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   justify-content: space-between;
   gap: 16px;
 }
@@ -66,11 +66,11 @@
 /* Цена — вторична, меньше названия */
 .price {
   font-family: var(--font-heading);
-  font-weight: 500;
+  font-weight: 600;
   font-size: 18px;
   line-height: 1.2;
   color: #fff;
-  margin-top: -8px;
+  margin-top: -13px;
 }
 
 @media (min-width: 768px) {
@@ -85,49 +85,18 @@
   background: rgba(255, 255, 255, 0.1);
   color: #fff;
   font-size: 12px;
-  font-weight: 500;
+  font-weight: 600;
   border-radius: 6px;
   letter-spacing: 0.01em;
 }
 
-/* Крупная CTA на всю ширину — белая (контраст на чёрном фоне) */
-.cta {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
+/* Ряд со сценарием покупки (AddToCartFlow) — под описанием */
+.ctaRow {
   width: 100%;
-  padding: 16px 20px;
-  background: #fff;
-  color: #000;
-  font-family: var(--font-heading);
-  font-size: 15px;
-  font-weight: 700;
-  line-height: 1;
-  letter-spacing: 0.02em;
-  text-transform: uppercase;
-  border-radius: 8px;
-  white-space: nowrap;
-  transition: background 0.15s ease;
-  user-select: none;
 }
 
-@media (hover: hover) and (pointer: fine) {
-  .cta:hover {
-    background: #e6e6e6;
-  }
-}
-
-.ctaDisabled {
-  background: rgba(255, 255, 255, 0.08);
-  color: var(--color-muted);
-  cursor: not-allowed;
-  pointer-events: none;
-}
-
-/* На мобилке CTA «плывёт» у нижней границы экрана, а при докрутке страницы
-   до конца — встаёт на своё прежнее место под описанием.
-   Скругление и отступы по краям наследуются из базового .cta (как раньше). */
+/* На мобилке ряд «плывёт» у нижней границы экрана, а при докрутке до конца
+   встаёт на своё место под описанием. */
 @media (max-width: 767px) {
   /* внутренний скролл info отключаем — скроллится страница, чтобы sticky
      цеплялся за нижнюю границу вьюпорта, а не за бокс info */
@@ -136,12 +105,12 @@
     overflow: visible;
   }
 
-  .cta {
+  .ctaRow {
     position: sticky;
     /* отступ снизу + home-indicator на iPhone */
     bottom: calc(16px + env(safe-area-inset-bottom, 0px));
     z-index: 30;
-    box-shadow: 0 8px 28px rgba(0, 0, 0, 0.5);
+    filter: drop-shadow(0 8px 28px rgba(0, 0, 0, 0.5));
   }
 }
 

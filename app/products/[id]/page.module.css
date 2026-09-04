@@ -6,27 +6,47 @@
 /* Десктоп: карусель + блок информации в один экран без скролла. */
 @media (min-width: 768px) {
   .main {
-    height: 100svh;
+    height: calc(100 * var(--svh, 1svh));
     overflow: hidden;
   }
 }
 
+/* Стрелка назад в стиле бургера: белый шеврон с дроп-шадоу, фикс. слева-сверху */
 .back {
-  position: absolute;
-  top: var(--space-md);
-  left: var(--space-md);
-  z-index: 3;
-  font-size: 12px;
-  color: var(--color-muted);
-  padding: 6px 12px;
-  background: rgba(0, 0, 0, 0.5);
-  border-radius: var(--radius-full);
-  backdrop-filter: blur(6px);
+  position: fixed;
+  /* на одном уровне с иконками меню/корзины (top 14, бокс 44×44) */
+  top: 14px;
+  left: 14px;
+  z-index: 1100;
+  width: 44px;
+  height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  filter: drop-shadow(0 1px 6px rgba(0, 0, 0, 0.8));
+  transition: opacity 0.2s ease;
+}
+
+/* На десктопе стрелка стоит ровно над колонкой миниатюр (лента слева):
+   отступ слоя 40px + центрирование над колонкой миниатюр 72px. */
+@media (min-width: 768px) {
+  .back {
+    left: calc(40px + (72px - 44px) / 2);
+  }
+}
+.backArrow {
+  width: 13px;
+  height: 13px;
+  margin-left: 4px;
+  border-left: 2px solid #fff;
+  border-bottom: 2px solid #fff;
+  border-radius: 1px;
+  transform: rotate(45deg);
 }
 
 @media (hover: hover) and (pointer: fine) {
   .back:hover {
-    color: var(--color-text);
+    opacity: 0.7;
   }
 }
 
@@ -95,14 +115,14 @@
   flex-direction: column;
   align-items: center;
   gap: var(--space-md);
-  min-height: 70svh;
+  min-height: calc(70 * var(--svh, 1svh));
   justify-content: center;
 }
 
 .notFoundTitle {
   font-family: var(--font-heading);
   font-size: 20px;
-  font-weight: 600;
+  font-weight: 700;
 }
 
 .backLink {

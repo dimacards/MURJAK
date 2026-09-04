@@ -1,0 +1,25 @@
+# /admin/ должен отдавать index.php (а не статический index.html, которого там нет).
+DirectoryIndex index.html index.php
+
+<IfModule mod_dir.c>
+  DirectoryIndex index.html index.php
+</IfModule>
+
+# === Принудительно HTTP ===
+# Любой запрос, пришедший по HTTPS, разворачиваем обратно на HTTP.
+# Учитываем и прямой HTTPS (HTTPS=on), и за-прокси (X-Forwarded-Proto=https,
+# порт 443). При желании удалить эту секцию, когда наконец будет нормальный SSL.
+<IfModule mod_rewrite.c>
+  RewriteEngine On
+  RewriteCond %{HTTPS} =on [OR]
+  RewriteCond %{HTTP:X-Forwarded-Proto} =https [OR]
+  RewriteCond %{SERVER_PORT} =443
+  RewriteRule ^(.*)$ http://%{HTTP_HOST}/$1 [R=301,L]
+</IfModule>
+
+# === Сбрасываем HSTS в браузерах ===
+# Если у клиента закэширован HSTS, он будет упорно ходить на HTTPS даже после
+# отключения редиректа на сервере. max-age=0 убирает запись из кэша браузера.
+<IfModule mod_headers.c>
+  Header always set Strict-Transport-Security "max-age=0"
+</IfModule>

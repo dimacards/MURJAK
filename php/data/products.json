@@ -1,0 +1,26 @@
+[
+  {
+    "id": 1,
+    "name": "Футболка «Hands»",
+    "price": 3500,
+    "photo": "/products/futbolka/item-1.png"
+  },
+  {
+    "id": 2,
+    "name": "Худи «энциклопедия»",
+    "price": 9990,
+    "photo": "/products/hoodie/item-1.png"
+  },
+  {
+    "id": 3,
+    "name": "Лонгслив «валет черви»",
+    "price": 5500,
+    "photo": "/products/longsleeve/item-1.png"
+  },
+  {
+    "id": 4,
+    "name": "Подвеска «SPOT»",
+    "price": 9990,
+    "photo": "/products/spot/item-1.jpg"
+  }
+]

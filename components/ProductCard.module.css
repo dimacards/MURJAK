@@ -1,7 +1,7 @@
 .card {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 5px;
   align-items: center;
   color: var(--color-text);
   min-width: 0;
@@ -12,13 +12,21 @@
   width: 100%;
   /* стандарт фото — квадрат 1:1 */
   aspect-ratio: 1 / 1;
-  overflow: hidden;
+  /* свечение PNG не обрезается рамкой карточки */
+  overflow: visible;
 }
 
 .image,
 .imageHover {
   object-fit: contain;
   transition: opacity 0.25s ease;
+}
+
+/* зум + белое свечение по контуру PNG — только у вещей-вырезов (футболка/худи) */
+.glow {
+  transform: scale(1.2);
+  filter: drop-shadow(0 0 26px rgba(255, 255, 255, 0.5))
+    drop-shadow(0 0 9px rgba(255, 255, 255, 0.4));
 }
 
 /* Вторая фотография категории — показывается при наведении */
@@ -41,24 +49,34 @@
   background: rgba(255, 255, 255, 0.04);
 }
 
-.outOfStockBadge {
+.outOfStockOverlay {
   position: absolute;
-  top: 8px;
-  left: 8px;
-  padding: 4px 8px;
-  background: rgba(255, 255, 255, 0.12);
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.62);
   color: #fff;
-  font-size: 12px;
-  font-weight: 500;
-  border-radius: 4px;
+  font-family: var(--font-heading);
+  font-weight: 700;
+  font-size: 14px;
   letter-spacing: 0.02em;
-  backdrop-filter: blur(4px);
+  text-align: center;
+  padding: 0 12px;
+  z-index: 2;
+  pointer-events: none;
+}
+
+@media (min-width: 768px) {
+  .outOfStockOverlay {
+    font-size: 16px;
+  }
 }
 
 /* Типографика кратна 4: заголовок 16/20, цена 12/16 */
 .title {
   font-family: var(--font-heading);
-  font-weight: 600;
+  font-weight: 700;
   font-size: 16px;
   line-height: 1.4;
   letter-spacing: -0.28px;
@@ -81,7 +99,7 @@
 
 .price {
   font-family: var(--font-heading);
-  font-weight: 500;
+  font-weight: 600;
   font-size: 12px;
   line-height: 1.4;
   text-align: center;

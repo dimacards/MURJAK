@@ -1,0 +1,18 @@
+/* Появление при скролле — медленно, плавно, ease-out; только opacity. */
+.reveal {
+  opacity: 0;
+  transition: opacity 950ms cubic-bezier(0.22, 1, 0.36, 1);
+  will-change: opacity;
+}
+
+.shown {
+  opacity: 1;
+}
+
+/* Отключённая анимация — всё видно сразу, без перехода. */
+@media (prefers-reduced-motion: reduce) {
+  .reveal {
+    opacity: 1;
+    transition: none;
+  }
+}

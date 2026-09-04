@@ -1,0 +1,275 @@
+.page {
+  min-height: calc(100 * var(--svh, 1svh));
+  padding: clamp(90px, 14vh, 140px) clamp(20px, 6vw, 96px) 60px;
+  background: var(--color-bg, #0a0a0a);
+}
+
+.inner {
+  max-width: 760px;
+  margin: 0 auto;
+}
+
+.title {
+  font-family: var(--font-heading);
+  font-weight: 700;
+  font-size: clamp(28px, 5vw, 44px);
+  letter-spacing: -0.01em;
+  text-transform: uppercase;
+  color: #fff;
+  margin: 0 0 28px;
+}
+
+.empty {
+  color: var(--color-muted, #888);
+  font-size: 15px;
+  margin: 0 0 24px;
+}
+
+.list {
+  list-style: none;
+  margin: 0 0 24px;
+  padding: 0;
+  display: grid;
+  gap: 14px;
+}
+
+.row {
+  display: grid;
+  grid-template-columns: 88px 1fr auto;
+  gap: 16px;
+  align-items: center;
+  padding: 12px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 10px;
+}
+
+.rowOff {
+  opacity: 0.5;
+}
+
+.thumb {
+  position: relative;
+  width: 88px;
+  height: 88px;
+  border-radius: 8px;
+  overflow: hidden;
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.thumbImg {
+  object-fit: contain;
+}
+
+.meta {
+  min-width: 0;
+}
+
+.name {
+  display: block;
+  font-family: var(--font-heading);
+  font-weight: 700;
+  font-size: 15px;
+  color: #fff;
+  overflow-wrap: anywhere;
+}
+
+.price {
+  margin-top: 4px;
+  font-size: 14px;
+  color: rgba(255, 255, 255, 0.7);
+}
+
+.gone {
+  margin-top: 4px;
+  font-size: 12px;
+  color: #ff8a8a;
+}
+
+.controls {
+  display: grid;
+  gap: 8px;
+  justify-items: end;
+}
+
+/* Счётчик — серый непрозрачный, без обводки. Отступ вокруг кнопок 3px со всех
+   сторон; концентрично: скругление кнопки = счётчик (11) − отступ (3) = 8. */
+.counter {
+  display: inline-flex;
+  align-items: center;
+  background: #262626;
+  border-radius: 11px;
+  padding: 3px;
+}
+
+.counter button {
+  width: 40px;
+  height: 40px;
+  background: transparent;
+  color: #fff;
+  border: 0;
+  font-size: 20px;
+  line-height: 1;
+  cursor: pointer;
+  touch-action: manipulation;
+  border-radius: 8px;
+  transition: background 0.15s ease;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .counter button:hover {
+    background: rgba(255, 255, 255, 0.12);
+  }
+}
+
+.counter span {
+  min-width: 24px;
+  text-align: center;
+  font-family: var(--font-heading);
+  font-size: 15px;
+  font-weight: 700;
+  color: #fff;
+}
+
+.sizes {
+  margin-top: 4px;
+  font-size: 12.5px;
+  color: rgba(255, 255, 255, 0.6);
+}
+
+.note {
+  font-size: 13px;
+  color: var(--color-muted, #888);
+  margin: 0 0 20px;
+}
+
+.footer {
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  padding-top: 20px;
+  display: grid;
+  gap: 14px;
+}
+
+.total {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  font-family: var(--font-heading);
+  color: #fff;
+}
+
+.total span {
+  font-size: 15px;
+  color: rgba(255, 255, 255, 0.7);
+}
+
+.total strong {
+  font-size: 22px;
+  font-weight: 700;
+}
+
+.pay {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  padding: 16px 20px;
+  background: #fff;
+  color: #000;
+  font-family: var(--font-heading);
+  font-size: 15px;
+  font-weight: 700;
+  line-height: 1;
+  border-radius: 10px;
+  border: 0;
+  cursor: pointer;
+  min-height: 52px;
+  touch-action: manipulation;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .pay:hover {
+    opacity: 0.9;
+  }
+}
+
+.payOff {
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--color-muted, #888);
+  cursor: not-allowed;
+}
+
+/* Полноценная серая кнопка (дизайн-система) */
+.clear {
+  width: 100%;
+  padding: 16px 20px;
+  min-height: 52px;
+  background: #262626;
+  color: #fff;
+  font-family: var(--font-heading);
+  font-size: 15px;
+  font-weight: 700;
+  line-height: 1;
+  border: 0;
+  border-radius: 12px;
+  cursor: pointer;
+  touch-action: manipulation;
+  transition: background 0.2s ease;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .clear:hover {
+    background: #333;
+  }
+}
+
+/* Стрелка «назад» — как на странице товара, на уровне иконок меню/корзины */
+.back {
+  position: fixed;
+  top: 14px;
+  left: 14px;
+  z-index: 1100;
+  width: 44px;
+  height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+  filter: drop-shadow(0 1px 6px rgba(0, 0, 0, 0.8));
+  transition: opacity 0.2s ease;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .back:hover {
+    opacity: 0.7;
+  }
+}
+
+.backArrow {
+  width: 13px;
+  height: 13px;
+  margin-left: 4px;
+  border-left: 2px solid #fff;
+  border-bottom: 2px solid #fff;
+  border-radius: 1px;
+  transform: rotate(45deg);
+}
+
+@media (max-width: 520px) {
+  /* На мобилке счётчик остаётся в правой колонке: сдвинут вправо и
+     отцентрован по высоте строки. */
+  .row {
+    grid-template-columns: 68px 1fr auto;
+    gap: 12px;
+  }
+  .thumb {
+    width: 68px;
+    height: 68px;
+  }
+  .controls {
+    justify-items: end;
+    align-self: center;
+  }
+}

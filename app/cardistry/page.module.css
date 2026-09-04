@@ -1,0 +1,333 @@
+/* «История кардистри» — лонгрид: плотный зернистый чёрный, гигантские
+   «фантомные» слова, таймлайн-стержень, негативное пространство. */
+
+.page {
+  --gutter: clamp(20px, 6vw, 96px);
+  --mono: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, monospace;
+  /* сила B&W-обработки медиа — крути здесь (чистое Ч/Б, без выцветания) */
+  --media-contrast: 1.25;
+  --media-brightness: 1.05;
+  position: relative;
+  background: #000;
+  color: #fff;
+  overflow: hidden;
+  /* здесь тонкий шрифт допускается — возвращаем базовый вес как было */
+  font-weight: 400;
+}
+
+/* Зерно (film grain) поверх всего */
+.grain {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  pointer-events: none;
+  opacity: 0.08;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+
+.back {
+  position: fixed;
+  top: clamp(14px, 3vw, 26px);
+  left: clamp(14px, 3vw, 26px);
+  z-index: 101;
+  font-family: var(--mono);
+  font-weight: 500;
+  font-size: 14px;
+  letter-spacing: 0.04em;
+  color: #fff;
+  mix-blend-mode: difference;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .back:hover {
+    color: #fff;
+  }
+}
+
+/* Гигантское «фантомное» слово — серый + сильный блюр, зерно сверху */
+.phantom {
+  position: absolute;
+  z-index: 0;
+  font-family: var(--font-heading);
+  font-weight: 700;
+  font-size: clamp(140px, 32vw, 560px);
+  line-height: 0.8;
+  letter-spacing: -0.04em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  color: #3b3b3b;
+  opacity: 0.7;
+  filter: blur(20px);
+  user-select: none;
+  pointer-events: none;
+}
+
+/* Вертикальное «фантомное» слово эпохи (ERA N) — справа, по центру высоты
+   блока; умеренный размер и блюр, не сталкивается с горизонтальным словом
+   сверху (центр блока далеко от верхней кромки). */
+.vphantom {
+  position: absolute;
+  z-index: 0;
+  right: clamp(10px, 2vw, 44px);
+  left: auto;
+  top: 50%;
+  bottom: auto;
+  transform: translateY(-50%);
+  writing-mode: vertical-rl;
+  font-family: var(--font-heading);
+  font-weight: 700;
+  font-size: clamp(120px, 17vw, 320px);
+  line-height: 0.9;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  color: #3b3b3b;
+  opacity: 0.5;
+  filter: blur(9px);
+  user-select: none;
+  pointer-events: none;
+}
+
+/* Медиа: высококонтрастный ч/б, выбитые средние тона; тёмное сливается с фоном */
+.mediaImg {
+  object-fit: cover;
+  filter: grayscale(1) contrast(var(--media-contrast))
+    brightness(var(--media-brightness));
+  mix-blend-mode: screen;
+}
+
+/* Латинские тех-подписи */
+.mark {
+  font-family: var(--mono);
+  font-weight: 500;
+  font-size: 14px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: #fff;
+}
+
+/* ===== 1. Обложка ===== */
+.cover {
+  position: relative;
+  min-height: calc(100 * var(--svh, 1svh));
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: 0 var(--gutter);
+}
+
+.cover .phantom {
+  left: -5vw;
+  bottom: -calc(3 * var(--svh, 1svh));
+}
+
+.coverInner {
+  position: relative;
+  z-index: 1;
+}
+
+.coverTitle {
+  font-family: var(--font-heading);
+  font-weight: 700;
+  font-size: clamp(52px, 14vw, 220px);
+  line-height: 0.88;
+  letter-spacing: -0.02em;
+  text-transform: uppercase;
+  color: #fff;
+}
+
+.coverSub {
+  margin-top: clamp(18px, 3vw, 34px);
+  max-width: 38ch;
+  font-weight: 500;
+  font-size: clamp(17px, 2.2vw, 24px);
+  line-height: 1.4;
+  color: #fff;
+}
+
+/* ===== 2. Введение ===== */
+.intro {
+  position: relative;
+  display: grid;
+  grid-template-columns: repeat(12, 1fr);
+  column-gap: clamp(16px, 2.5vw, 32px);
+  row-gap: clamp(48px, calc(9 * var(--svh, 1svh)), 110px);
+  padding: clamp(110px, calc(20 * var(--svh, 1svh)), 260px) var(--gutter);
+}
+
+.introLede {
+  position: relative;
+  z-index: 1;
+  grid-column: 1 / 9;
+}
+
+/* «Кардистри» — крупный акцент */
+.introWord {
+  display: block;
+  font-family: var(--font-heading);
+  font-weight: 700;
+  font-size: clamp(46px, 9vw, 128px);
+  line-height: 0.95;
+  letter-spacing: -0.02em;
+  color: #fff;
+}
+
+/* «– искусство манипуляций…» — ступень ниже */
+.introDef {
+  display: block;
+  margin-top: clamp(8px, 1.4vw, 18px);
+  font-family: var(--font-heading);
+  font-weight: 600;
+  font-size: clamp(20px, 3.2vw, 40px);
+  line-height: 1.1;
+  letter-spacing: -0.01em;
+  text-wrap: balance;
+  color: #fff;
+}
+
+.introBody {
+  position: relative;
+  z-index: 1;
+  grid-column: 9 / 13;
+  align-self: end;
+  font-weight: 500;
+  font-size: 15.5px;
+  line-height: 1.4;
+  text-align: justify;
+  text-align-last: left;
+  hyphens: none;
+  color: #fff;
+}
+
+/* ===== 3–5. Эпохи: таймлайн как структура ===== */
+.era {
+  position: relative;
+  padding: clamp(110px, calc(20 * var(--svh, 1svh)), 260px) var(--gutter);
+}
+
+.era .phantom {
+  right: -3vw;
+  left: auto;
+  /* справа-сверху; вертикальное ERA — по центру справа, не сталкиваются */
+  top: clamp(8px, 2.5vw, 40px);
+  font-size: clamp(120px, 21vw, 400px);
+  filter: blur(12px);
+}
+
+.eHead {
+  position: relative;
+  z-index: 1;
+  margin-bottom: clamp(56px, calc(10 * var(--svh, 1svh)), 130px);
+  max-width: 60%;
+}
+
+.kicker {
+  font-family: var(--mono);
+  font-weight: 500;
+  font-size: 14px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: #fff;
+  margin-bottom: clamp(14px, 2vw, 22px);
+}
+
+.eTitle {
+  font-family: var(--font-heading);
+  font-weight: 700;
+  font-size: clamp(30px, 5vw, 64px);
+  line-height: 1;
+  letter-spacing: -0.01em;
+  text-transform: uppercase;
+  color: #fff;
+}
+
+/* ===== Финал — открытый вопрос про будущее жанра ===== */
+.final {
+  position: relative;
+  min-height: calc(86 * var(--svh, 1svh));
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: clamp(110px, calc(22 * var(--svh, 1svh)), 280px) var(--gutter);
+}
+
+.final .phantom {
+  left: -4vw;
+  top: 28%;
+}
+
+.finalQ {
+  position: relative;
+  z-index: 1;
+  max-width: 16ch;
+  font-family: var(--font-heading);
+  font-weight: 700;
+  font-size: clamp(40px, 8vw, 120px);
+  line-height: 1;
+  letter-spacing: -0.02em;
+  color: #fff;
+}
+
+/* ===== Мобилка ===== */
+@media (max-width: 720px) {
+  .intro {
+    grid-template-columns: 1fr;
+  }
+  .introLede,
+  .introBody {
+    grid-column: 1 / -1;
+  }
+
+  .eHead {
+    max-width: 100%;
+  }
+
+  /* Эры ближе друг к другу — меньше вертикальные отступы секции */
+  .era {
+    padding-top: clamp(56px, calc(12 * var(--svh, 1svh)), 130px);
+    padding-bottom: clamp(56px, calc(12 * var(--svh, 1svh)), 130px);
+  }
+
+  /* Горизонтальные фантомы (CARDISTRY / слова эпох / FUTURE): почти без блюра,
+     чтобы их было хорошо видно (у ERA блюр оставляем — см. .vphantom ниже) */
+  .phantom {
+    font-size: clamp(64px, 25vw, 168px);
+    filter: blur(4.5px);
+    color: #333333;
+    opacity: 0.62;
+  }
+  /* CARDISTRY — вертикально по правой стороне */
+  .cover .phantom {
+    writing-mode: vertical-rl;
+    left: auto;
+    right: -4vw;
+    top: 50%;
+    bottom: auto;
+    transform: translateY(-50%);
+  }
+  .final .phantom {
+    left: auto;
+    right: -4vw;
+  }
+  /* Эпоха: горизонтальное слово справа, сдвинуто чуть ниже; блюр как у FUTURE
+     (перебиваем десктопный .era .phantom blur(12px)) */
+  .era .phantom {
+    left: auto;
+    right: -2vw;
+    top: clamp(40px, 13vw, 96px);
+    font-size: clamp(62px, 21vw, 148px);
+    filter: blur(4.5px);
+  }
+
+  /* Вертикальное ERA на мобилке: вправо, по центру; блюр оставляем мягким */
+  .vphantom {
+    font-size: clamp(92px, 33vw, 212px);
+    filter: blur(6px);
+    left: auto;
+    right: -4vw;
+    top: 50%;
+    bottom: auto;
+    transform: translateY(-50%);
+    opacity: 0.4;
+  }
+}

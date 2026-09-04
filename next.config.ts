@@ -10,6 +10,10 @@ import type { NextConfig } from "next";
  */
 const nextConfig: NextConfig = {
   output: "export",
+  // На обычном хостинге (Apache/Nginx) /products/1 должен открываться без
+  // .htaccess: trailingSlash делает структуру вида products/1/index.html,
+  // которую сервер отдаёт сам.
+  trailingSlash: true,
   images: {
     unoptimized: true,
   },

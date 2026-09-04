@@ -1,0 +1,60 @@
+/* Корзина сверху-справа, слева от бургера. Бокс 44×44, как у бургера,
+   вертикальные центры совпадают. Бургер: right 14, ширина 44 → корзина
+   вплотную с зазором. */
+.button {
+  position: fixed;
+  top: 14px;
+  right: 62px;
+  z-index: 1100;
+  width: 44px;
+  height: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition:
+    opacity 0.2s ease,
+    color 0.2s ease,
+    filter 0.2s ease;
+}
+
+/* Активная — белая, с тенью для читаемости на видео */
+.active {
+  color: #fff;
+  filter: drop-shadow(0 1px 6px rgba(0, 0, 0, 0.8));
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .active:hover {
+    opacity: 0.75;
+  }
+}
+
+/* Неактивная (пусто) — приглушённая, с блюром и в цвете фантомных
+   надписей «ВЕЩИ БРЕНДА» / «НОВЫЕ ВЕЩИ СКОРО» (#3b3b3b).
+   Без hover и без клика — заходить в пустую корзину незачем. */
+.inactive {
+  color: rgba(59, 59, 59, 0.85);
+  filter: blur(1.4px);
+  cursor: default;
+  pointer-events: none;
+}
+
+/* Счётчик — кружок справа сверху */
+.badge {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  border-radius: 8px;
+  background: #fff;
+  color: #000;
+  font-family: var(--font-heading);
+  font-weight: 700;
+  font-size: 10.5px;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}

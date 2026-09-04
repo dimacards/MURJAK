@@ -35,6 +35,10 @@
   --font-sans: var(--font-manrope), system-ui, -apple-system,
     "Helvetica Neue", Arial, sans-serif;
   --font-heading: var(--font-sans);
+
+  /* Вертикальная позиция логотипа на главной: верх букв на одном уровне с
+     иконкой меню/бургера (≈28px = burger top 14 + (46−18)/2). */
+  --logo-top: 28px;
 }
 
 /* ===== Reset ===== */
@@ -55,6 +59,14 @@ html {
      rAF-доезд через window.scrollTo — нативный smooth конфликтовал бы
      (дёргал бы каждый шаг твина). */
   scroll-behavior: auto;
+  /* резервируем место под скролл-бар — контент не «прыгает» при его
+     появлении/исчезновении и не реагирует на баннеры */
+  scrollbar-gutter: stable;
+  /* текст не масштабируется браузером (без скачков размеров) */
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+  /* браузер не «подкручивает» скролл при смене вьюпорта (бары/перевод) */
+  overflow-anchor: none;
 }
 
 body {
@@ -64,9 +76,15 @@ body {
   font-family: var(--font-sans);
   font-size: 15px;
   line-height: 1.5;
+  /* базовый вес 500 — нигде не остаётся тонкого regular-400 */
+  font-weight: 500;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   overflow-x: hidden;
+  /* запрет выделения текста по всему сайту */
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
 }
 
 a {

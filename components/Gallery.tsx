@@ -19,10 +19,12 @@ export function Gallery({
   photos,
   videoUrl,
   title,
+  glow = false,
 }: {
   photos: string[];
   videoUrl?: string | null;
   title: string;
+  glow?: boolean;
 }) {
   const slides: Slide[] = [
     ...photos.map((src) => ({ type: "image" as const, src })),
@@ -177,7 +179,7 @@ export function Gallery({
             alt={`${title} — ${i + 1} из ${total}`}
             fill
             sizes="(min-width: 768px) 60vw, 100vw"
-            className={styles.mainMedia}
+            className={`${styles.mainMedia}${glow && i < 2 ? " " + styles.glow : ""}`}
             priority
           />
         ) : (

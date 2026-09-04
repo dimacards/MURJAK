@@ -1,12 +1,20 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import Link from "next/link";
 import type { ProductDto } from "@/lib/api-types";
 import config from "@/lib/config";
+import { BrandRibbon } from "./BrandRibbon";
 import { Footer } from "./Footer";
 import { LogoSvg } from "./LogoSvg";
 import { ProductGrid } from "./ProductGrid";
+import { Reveal } from "./Reveal";
 import styles from "@/app/page.module.css";
+
+// layout-effect на клиенте (восстановление позиции до отрисовки — без вспышки),
+// обычный effect на сервере (иначе React ругается при SSR).
+const useIsoEffect = typeof window !== "undefined" ? useLayoutEffect : useEffect;
+const SCROLL_KEY = "home-scroll";
 
 /**
  * Снап-механика первого экрана + переезд логотипа.
@@ -32,11 +40,12 @@ import styles from "@/app/page.module.css";
  */
 type SnapState = "hero" | "snapping" | "docked";
 
-const SNAP_DURATION = 850;
+const SNAP_DURATION = 850; // вперёд (в блок)
+const SNAP_BACK = 600; // назад на Hero — чуть короче
 const QUIET_MS = 30;
 const EDGE = 2;
 const THRESH = 6;
-const LOGO_RATIO = 1959.53 / 506.385;
+const LOGO_RATIO = 1759.53 / 306.385; // viewBox обрезан по буквам (без полей)
 
 function easeInOutCubic(t: number): number {
   return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
@@ -55,21 +64,54 @@ export function HomeShell({ items }: { items: ProductDto[] }) {
     setState(s);
   };
 
-  // Масштаб hero-логотипа: 32px-база → ~ширина вьюпорта (пересчёт на ресайз).
+  // Масштаб hero-логотипа: 32px-база → ~ширина вьюпорта.
+  // Размер «приземлившегося» лого (--logo-dock) — ФИКСИРОВАННЫЙ: мобилка мельче,
+  // десктоп постоянный (не зависит от длины описания, без пересчётов/дёрганий).
   useEffect(() => {
     const calc = () => {
-      const heroW = Math.min(window.innerWidth * 0.92, 1760);
-      const heroH = heroW / LOGO_RATIO;
-      setBigScale(heroH / 32);
+      const vw = window.innerWidth;
+      // видимая ширина hero-логотипа (viewBox обрезан → heroW == ширине букв)
+      const heroW = Math.min(vw * 0.826, 1580);
+      setBigScale(heroW / LOGO_RATIO / 32);
+      document.documentElement.style.setProperty(
+        "--logo-dock",
+        vw >= 768 ? "3" : "1.6",
+      );
     };
     calc();
-    window.addEventListener("resize", calc);
-    return () => window.removeEventListener("resize", calc);
+    // Пересчитываем ТОЛЬКО при смене ширины. Появление/скрытие баров браузера
+    // (поиск, перевод, адресная строка) меняет высоту — на это не реагируем,
+    // иначе логотип бы дёргался/менял размер при их закрытии.
+    let lastW = window.innerWidth;
+    const onResize = () => {
+      if (window.innerWidth === lastW) return;
+      lastW = window.innerWidth;
+      calc();
+    };
+    window.addEventListener("resize", onResize);
+    // пересчёт после загрузки шрифта (иначе ширина меряется по фолбэку)
+    document.fonts?.ready.then(calc);
+    return () => window.removeEventListener("resize", onResize);
   }, []);
 
-  useEffect(() => {
+  useIsoEffect(() => {
     if ("scrollRestoration" in history) history.scrollRestoration = "manual";
-    window.scrollTo(0, 0);
+    // Возврат с товара/истории — восстанавливаем ту же позицию (а не верх).
+    let restoredY = 0;
+    try {
+      const saved = sessionStorage.getItem(SCROLL_KEY);
+      if (saved) {
+        const p = JSON.parse(saved);
+        if (p && p.state === "docked" && p.y > 0) restoredY = p.y;
+      }
+    } catch {}
+    if (restoredY > 0) {
+      setSnapState("docked");
+      setLogoBig(false);
+      window.scrollTo(0, restoredY);
+    } else {
+      window.scrollTo(0, 0);
+    }
 
     let tweenRaf: number | null = null;
     let watchdog: number | null = null;
@@ -77,6 +119,16 @@ export function HomeShell({ items }: { items: ProductDto[] }) {
     let tweenDone = false;
     let lastInput = 0;
     let touchStartY: number | null = null;
+    let touchStartX: number | null = null;
+    // двухшаговый выход на Hero: у верха блока нужен отдельный «второй» жест.
+    // heroArmed = взведён ли переход (первый жест у верха только взводит,
+    // второй уводит на Hero); сбрасывается при уходе вниз.
+    let heroArmed = false;
+    let armedAtStart = false; // был ли взведён в начале текущего касания
+    // колесо/трекпад: один «свайп» = поток событий; разделяем по паузе,
+    // чтобы один непрерывный свайп не взвёл и не сработал разом
+    let lastWheelTs = 0;
+    let wheelActed = false; // в текущем «свайпе» колеса уже было действие
 
     const targetTop = () =>
       targetRef.current ? targetRef.current.offsetTop : window.innerHeight;
@@ -100,13 +152,13 @@ export function HomeShell({ items }: { items: ProductDto[] }) {
       }, 16);
     };
 
-    const tweenTo = (targetY: number, onDone: () => void) => {
+    const tweenTo = (targetY: number, dur: number, onDone: () => void) => {
       if (tweenRaf) cancelAnimationFrame(tweenRaf);
       const startY = window.scrollY;
       const dist = targetY - startY;
       const start = performance.now();
       const frame = (now: number) => {
-        const t = Math.min(1, (now - start) / SNAP_DURATION);
+        const t = Math.min(1, (now - start) / dur);
         window.scrollTo(0, Math.round(startY + dist * easeInOutCubic(t)));
         if (t < 1) tweenRaf = requestAnimationFrame(frame);
         else {
@@ -119,11 +171,13 @@ export function HomeShell({ items }: { items: ProductDto[] }) {
 
     const snapForward = () => {
       if (stateRef.current !== "hero") return;
+      heroArmed = false; // после приезда в блок — нужен отдельный 2-й жест
       setSnapState("snapping");
+      document.documentElement.style.setProperty("--snap-dur", "0.85s");
       setLogoBig(false); // CSS-переход: большой → 32px (как карточка)
       holdTarget = targetTop();
       tweenDone = false;
-      tweenTo(holdTarget, () => {
+      tweenTo(holdTarget, SNAP_DURATION, () => {
         tweenDone = true;
         lastInput = performance.now();
         finalizeWhenQuiet("docked");
@@ -133,10 +187,11 @@ export function HomeShell({ items }: { items: ProductDto[] }) {
     const snapBack = () => {
       if (stateRef.current !== "docked") return;
       setSnapState("snapping");
+      document.documentElement.style.setProperty("--snap-dur", "0.6s");
       setLogoBig(true); // CSS-переход: 32px → большой
       holdTarget = 0;
       tweenDone = false;
-      tweenTo(0, () => {
+      tweenTo(0, SNAP_BACK, () => {
         tweenDone = true;
         lastInput = performance.now();
         finalizeWhenQuiet("hero");
@@ -154,32 +209,50 @@ export function HomeShell({ items }: { items: ProductDto[] }) {
         e.preventDefault();
         if (tweenDone) window.scrollTo(0, holdTarget);
       } else {
+        // новый «свайп» колеса, если была пауза
+        const now = performance.now();
+        if (now - lastWheelTs > 160) wheelActed = false;
+        lastWheelTs = now;
         if (e.deltaY < 0 && window.scrollY <= targetTop() + EDGE) {
           e.preventDefault();
-          snapBack();
+          if (!wheelActed) {
+            wheelActed = true;
+            // первый «свайп» вверх у верха только взводит, второй → Hero
+            if (heroArmed) snapBack();
+            else heroArmed = true;
+          }
         }
       }
     };
 
     const onTouchStart = (e: TouchEvent) => {
       touchStartY = e.touches[0]?.clientY ?? null;
+      touchStartX = e.touches[0]?.clientX ?? null;
+      armedAtStart = heroArmed;
     };
 
     const onTouchMove = (e: TouchEvent) => {
       const st = stateRef.current;
       lastInput = performance.now();
       const y = e.touches[0]?.clientY ?? 0;
+      const x = e.touches[0]?.clientX ?? 0;
       const sy = touchStartY ?? y;
+      const sx = touchStartX ?? x;
+      // снап (hero↔брендовый блок) — только вертикальный свайп
+      const vertical = Math.abs(sy - y) > Math.abs(sx - x);
       if (st === "hero") {
         e.preventDefault();
-        if (sy - y > THRESH) snapForward();
+        if (vertical && sy - y > THRESH) snapForward();
       } else if (st === "snapping") {
         e.preventDefault();
         if (tweenDone) window.scrollTo(0, holdTarget);
       } else {
-        if (y - sy > THRESH && window.scrollY <= targetTop() + EDGE) {
+        // у верха блока: первый жест только взводит (экран стоит на верхе),
+        // и лишь СЛЕДУЮЩИЙ жест вверх уводит на Hero
+        if (vertical && y - sy > THRESH && window.scrollY <= targetTop() + EDGE) {
           e.preventDefault();
-          snapBack();
+          if (armedAtStart) snapBack();
+          else heroArmed = true;
         }
       }
     };
@@ -204,7 +277,8 @@ export function HomeShell({ items }: { items: ProductDto[] }) {
         ) {
           e.preventDefault();
           lastInput = performance.now();
-          snapBack();
+          if (heroArmed) snapBack();
+          else heroArmed = true;
         }
       }
     };
@@ -214,7 +288,27 @@ export function HomeShell({ items }: { items: ProductDto[] }) {
     const onScroll = () => {
       if (stateRef.current !== "docked") return;
       const top = targetTop();
-      if (window.scrollY < top) window.scrollTo(0, top);
+      if (window.scrollY < top) {
+        window.scrollTo(0, top); // придержка верхней границы
+      } else if (window.scrollY > top + EDGE) {
+        heroArmed = false; // ушли вниз — сброс взвода
+      }
+    };
+
+    // Запоминаем позицию для возврата с товара. Сохраняем В МОМЕНТ клика по
+    // ссылке — до того, как Next сбросит скролл (иначе onScroll придержал бы
+    // его к верху блока и мы бы вернулись не туда).
+    const saveScroll = () => {
+      try {
+        sessionStorage.setItem(
+          SCROLL_KEY,
+          JSON.stringify({ y: window.scrollY, state: stateRef.current }),
+        );
+      } catch {}
+    };
+    const onDocClick = (e: MouseEvent) => {
+      const a = (e.target as Element)?.closest?.('a[href^="/"]');
+      if (a) saveScroll();
     };
 
     window.addEventListener("wheel", onWheel, { passive: false });
@@ -222,6 +316,8 @@ export function HomeShell({ items }: { items: ProductDto[] }) {
     window.addEventListener("touchmove", onTouchMove, { passive: false });
     window.addEventListener("keydown", onKeyDown);
     window.addEventListener("scroll", onScroll, { passive: true });
+    window.addEventListener("pagehide", saveScroll);
+    document.addEventListener("click", onDocClick, true); // capture — до навигации
 
     return () => {
       window.removeEventListener("wheel", onWheel);
@@ -229,6 +325,8 @@ export function HomeShell({ items }: { items: ProductDto[] }) {
       window.removeEventListener("touchmove", onTouchMove);
       window.removeEventListener("keydown", onKeyDown);
       window.removeEventListener("scroll", onScroll);
+      window.removeEventListener("pagehide", saveScroll);
+      document.removeEventListener("click", onDocClick, true);
       if (tweenRaf) cancelAnimationFrame(tweenRaf);
       clearWatchdog();
     };
@@ -238,6 +336,9 @@ export function HomeShell({ items }: { items: ProductDto[] }) {
 
   return (
     <>
+      {/* Зерно (film grain) поверх всего — тот же приём, что в истории */}
+      <div className={styles.grain} aria-hidden="true" />
+
       {/* Логотип-оверлей (hero / переезд). Прячем в docked — там работает
           статичный логотип в потоке брендового блока. */}
       <div
@@ -271,22 +372,52 @@ export function HomeShell({ items }: { items: ProductDto[] }) {
         />
       </section>
 
-      {/* 2) Брендовый блок — цель снапа; статичный логотип над описанием */}
+      {/* 2) Брендовый блок — цель снапа: лого слева (приезжает), под ним
+          описание, по диагонали — лента лукбук-фото, внизу — ссылка-история */}
       <section ref={targetRef} className={styles.brand}>
         <LogoSvg
           className={`${styles.logoStatic} ${
             docked ? "" : styles.logoStaticHidden
           }`}
         />
-        <p className={styles.brandDesc}>
-          Это бренд, который занимается популяризацией кардистри
-        </p>
+        <Reveal as="p" className={styles.brandDesc}>
+          бренд одежды, вдохновлённый эстетикой кардистри
+          <br />и продвигающий это искусство
+        </Reveal>
+
+        <BrandRibbon />
+
+        <Reveal className={styles.histLink} delay={120}>
+          <Link href="/cardistry" className={styles.histLinkText}>
+            История
+            <br />
+            кардистри
+          </Link>
+          <span className={styles.histHint}>
+            нажми, чтобы перейти на страницу с историей кардистри
+          </span>
+        </Reveal>
       </section>
 
       {/* 3) Товары */}
       <section className={styles.products}>
+        {/* Шапка во всю ширину: фантом + «Товары» по центру */}
+        <div className={styles.head}>
+          <span className={styles.headPhantom} aria-hidden="true">
+            ВЕЩИ БРЕНДА
+          </span>
+          <Reveal as="h1" className={styles.sectionTitle}>
+            Товары
+          </Reveal>
+        </div>
+
         <div className={styles.productsInner}>
           <ProductGrid items={items} />
+        </div>
+
+        {/* Нижний фантом во всю ширину */}
+        <div className={styles.foot} aria-hidden="true">
+          <span className={styles.footPhantom}>НОВЫЕ ВЕЩИ СКОРО</span>
         </div>
       </section>
 

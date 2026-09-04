@@ -1,0 +1,112 @@
+.wrap {
+  display: flex;
+  gap: 10px;
+  width: 100%;
+  align-items: stretch;
+}
+
+/* Единственная кнопка «Добавить в корзину» */
+.add {
+  flex: 1;
+  min-width: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px 20px;
+  min-height: 54px;
+  background: #fff;
+  color: #000;
+  font-family: var(--font-heading);
+  font-size: 15px;
+  font-weight: 700;
+  line-height: 1;
+  border: 0;
+  border-radius: 12px;
+  cursor: pointer;
+  touch-action: manipulation;
+  transition: opacity 0.2s ease;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .add:hover {
+    opacity: 0.9;
+  }
+}
+
+.addDisabled {
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--color-muted, #888);
+  cursor: not-allowed;
+}
+
+/* Счётчик — серый непрозрачный (ничего не просвечивает), без обводки.
+   Отступ вокруг кнопок одинаковый со всех сторон = 4px.
+   Концентрично: скругление кнопки = скругление счётчика (14) − отступ (4) = 10. */
+.counter {
+  flex: 1;
+  min-width: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 54px;
+  padding: 4px;
+  background: #262626;
+  border-radius: 14px;
+}
+
+.counter button {
+  width: 46px;
+  height: 46px;
+  flex: 0 0 auto;
+  background: transparent;
+  border: 0;
+  color: #fff;
+  font-size: 22px;
+  line-height: 1;
+  cursor: pointer;
+  touch-action: manipulation;
+  border-radius: 10px;
+  transition: background 0.15s ease;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .counter button:hover {
+    background: rgba(255, 255, 255, 0.12);
+  }
+}
+
+.counter span {
+  flex: 1;
+  text-align: center;
+  font-family: var(--font-heading);
+  font-weight: 700;
+  font-size: 16px;
+  color: #fff;
+}
+
+/* Белая кнопка «Перейти в корзину» той же ширины */
+.toCart {
+  flex: 1;
+  min-width: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px 16px;
+  min-height: 54px;
+  background: #fff;
+  color: #000;
+  font-family: var(--font-heading);
+  font-size: 15px;
+  font-weight: 700;
+  line-height: 1.1;
+  text-align: center;
+  border-radius: 12px;
+  cursor: pointer;
+  transition: opacity 0.2s ease;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .toCart:hover {
+    opacity: 0.9;
+  }
+}

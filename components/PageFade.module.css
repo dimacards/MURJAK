@@ -1,0 +1,10 @@
+/* Чёрный слой поверх всего для fade-перехода между страницами.
+   Прозрачность задаётся инлайн-стилем от состояния. */
+.overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 3000;
+  background: #000;
+  pointer-events: none;
+  transition: opacity 0.26s ease;
+}
